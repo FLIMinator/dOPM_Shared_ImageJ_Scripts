@@ -54,9 +54,9 @@ class dOPMMVF:
         tiles= []
         hyperstack = -1
         
-        results += [each for each in os.listdir(self.datapath) if each.endswith(self.extension)]
-        times += [ str(int(each.split('_')[tsplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension)]
-        tiles += [ str(int(each.split('_')[tilesplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension)]
+        results += [each for each in os.listdir(self.datapath) if each.endswith(self.extension) and each.startswith('spim')]
+        times += [ str(int(each.split('_')[tsplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension) and each.startswith('spim')]
+        tiles += [ str(int(each.split('_')[tilesplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension) and each.startswith('spim')]
 
         
         T = set(times)

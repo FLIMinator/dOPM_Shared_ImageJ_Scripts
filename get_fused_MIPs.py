@@ -108,4 +108,5 @@ def getMIPsonFolder(datapath):
 if __name__ in ['__builtin__','__main__']:
     # Run the code mofo
     getMIPsonFolder(datapath)
+    IJ.log("Finished")
 

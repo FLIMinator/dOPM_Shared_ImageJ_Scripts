@@ -21,7 +21,7 @@ from ome.units import UNITS
 class dOPMMVF:
 
     def __init__(self, **kwargs):
-        valid_keys = ["datapath","regpath","filepattern","extension","px","py","angle","flip"]
+        valid_keys = ["datapath","regpath","filepattern","extension","px","py","angle"]
         for key in valid_keys:
             setattr(self, key, kwargs.get(key))
         self.filepattern_ = self.filepattern
@@ -64,78 +64,83 @@ class dOPMMVF:
 
         Tiles = set(tiles)
         Tiles= ','.join(Tiles)
+        
+        if len(results):
+        
+            file = os.path.join(self.datapath,results[0])
                 
-        file = os.path.join(self.datapath,results[0])
-            
-        tiff_names=['.tif','.tiff']
+            tiff_names=['.tif','.tiff']
 
-        if any(self.extension==i for i in tiff_names):
-            imps = BF.openImagePlus(file)
-            imp = imps[0]
-            szX = imp.getCalibration().pixelWidth
-            szY = imp.getCalibration().pixelHeight
-            szZ = imp.getCalibration().pixelDepth
-            X=imp.getWidth()
-            Y=imp.getHeight()
-            Z=imp.getImageStackSize()
-            imp.close()
-#            print xVox
-#            print yVox
-#            print zVox
-            hyperstack = 0
-            print 'processing tif zstacks'
-            channels += [ each.split('_')[csplit].split('l')[1] for each in os.listdir(self.datapath) if each.endswith(self.extension)]
-            C = set(channels)
-            C= ','.join(C)          
-            
-        elif self.extension=='.nd2':
-            # read in and display ImagePlus object(s)
-            reader = ImageReader()
-            omeMeta = MetadataTools.createOMEXMLMetadata()
-            reader.setMetadataStore(omeMeta)
-            reader.setId(file)
-            #seriesCount = reader.getSeriesCount()
-            X=reader.getSizeX()
-            Y=reader.getSizeY()
-            Z=reader.getSizeZ()
-    
-            #T=reader.getSizeT() # we dont use this
-            # physical calibration - assumes microns
-            szX = omeMeta.getPixelsPhysicalSizeX(0).value() # not correct dont use
-            szY = omeMeta.getPixelsPhysicalSizeY(0).value() # not correct dont use
-            szZ = omeMeta.getPixelsPhysicalSizeZ(0).value() # not correct dont use
-            
-            if reader.getSizeC()>1 and self.filepattern.find('channel')==-1:
-                print 'processing nd2 hyperstacks'
-                hyperstack = 1
-                C=reader.getSizeC() # we don't use this
-                for c in range(C):
-                    channels.append(str(c))
-                C=','.join(channels)
-                
-            elif reader.getSizeC()==1 and self.filepattern.find('channel')!=-1:
+            if any(self.extension==i for i in tiff_names):
+                imps = BF.openImagePlus(file)
+                imp = imps[0]
+                szX = imp.getCalibration().pixelWidth
+                szY = imp.getCalibration().pixelHeight
+                szZ = imp.getCalibration().pixelDepth
+                X=imp.getWidth()
+                Y=imp.getHeight()
+                Z=imp.getImageStackSize()
+                imp.close()
+    #            print xVox
+    #            print yVox
+    #            print zVox
                 hyperstack = 0
-                print 'processing nd2 zstacks'
+                print 'processing tif zstacks'
                 channels += [ each.split('_')[csplit].split('l')[1] for each in os.listdir(self.datapath) if each.endswith(self.extension)]
                 C = set(channels)
-                C= ','.join(C)
+                C= ','.join(C)          
                 
-            elif reader.getSizeC()==1 and self.filepattern.find('channel')==-1:
-                print 'processing nd2 hyperstacks'
-                hyperstack = 1
-                C=reader.getSizeC() # we don't use this
-                for c in range(C):
-                    channels.append(str(c))
-                C=','.join(channels)
-                
-            reader.close()
-            
-        else:
-            print 'error in image format - does not match expected types'   
+            elif self.extension=='.nd2':
+                # read in and display ImagePlus object(s)
+                reader = ImageReader()
+                omeMeta = MetadataTools.createOMEXMLMetadata()
+                reader.setMetadataStore(omeMeta)
+                reader.setId(file)
+                #seriesCount = reader.getSeriesCount()
+                X=reader.getSizeX()
+                Y=reader.getSizeY()
+                Z=reader.getSizeZ()
         
-        print [X,Y,Z,T,C,szX,szY,szZ]
-        return [X,Y,Z,T,C,szX,szY,szZ,Tiles,hyperstack]
-    
+                #T=reader.getSizeT() # we dont use this
+                # physical calibration - assumes microns
+                szX = omeMeta.getPixelsPhysicalSizeX(0).value() # not correct dont use
+                szY = omeMeta.getPixelsPhysicalSizeY(0).value() # not correct dont use
+                szZ = omeMeta.getPixelsPhysicalSizeZ(0).value() # not correct dont use
+                
+                if reader.getSizeC()>1 and self.filepattern.find('channel')==-1:
+                    print 'processing nd2 hyperstacks'
+                    hyperstack = 1
+                    C=reader.getSizeC() # we don't use this
+                    for c in range(C):
+                        channels.append(str(c))
+                    C=','.join(channels)
+                    
+                elif reader.getSizeC()==1 and self.filepattern.find('channel')!=-1:
+                    hyperstack = 0
+                    print 'processing nd2 zstacks'
+                    channels += [ each.split('_')[csplit].split('l')[1] for each in os.listdir(self.datapath) if each.endswith(self.extension)]
+                    C = set(channels)
+                    C= ','.join(C)
+                    
+                elif reader.getSizeC()==1 and self.filepattern.find('channel')==-1:
+                    print 'processing nd2 hyperstacks'
+                    hyperstack = 1
+                    C=reader.getSizeC() # we don't use this
+                    for c in range(C):
+                        channels.append(str(c))
+                    C=','.join(channels)
+                    
+                reader.close()
+                
+            else:
+                print 'error in image format - does not match expected types'   
+            
+            print [X,Y,Z,T,C,szX,szY,szZ]
+            return [X,Y,Z,T,C,szX,szY,szZ,Tiles,hyperstack]
+        else:
+            print 'error in image format - does not match expected types'  
+            return []
+        
     def createXMLdataset(self):
         '''
         takes dOPM z-stack parameters and acquisition parameters to create dataset - this can also be done using multiview fusion plugin application in imagej
@@ -234,7 +239,7 @@ class dOPMMVF:
         new_setupid_spacer = 'NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN'
         
         for node in root.findall('./ViewRegistrations/ViewRegistration'):
-            #print node
+            print node
             #print node[0].find('affine').text
             for i in node:
                 #elem  = i.find('affine').text.replace(' ',',')
@@ -258,7 +263,7 @@ class dOPMMVF:
 
     def transformXMLdataset(self):
         '''
-        takes dOPM z-stack parameters and performs affine transformations to deshear, flip, rotate and scale the z-stacks and get them ready for registration in microscope xyz coordinates
+        takes dOPM z-stack parameters and performs affine transformations to deshear, rotate and scale the z-stacks and get them ready for registration in microscope xyz coordinates
         uses imagej module IJ to run macro commands applicable to the multiview fusion plugin in imagej and programmatically add in strings for variables that need defining for each setup
         the macro commands have slightly different text depending on whether the dataset is single channel, single time, multiple channel, multiple time and so on which is a headache - this is why there are mutliple cases below
         '''
@@ -286,15 +291,9 @@ class dOPMMVF:
         tan0 = math.tan(mirror_angle)
         ydim_deskewed = math.floor(ydim + zdim*tan0);
         zdim_correct_shift = math.floor(zdim/math.cos(mirror_angle));
-        ydim_flip_shift = ydim;
         tan0 = IJ.d2s(tan0,6); 
         #datapath = self.datapath+"/"+self.dataset
         datapath = os.path.join(self.datapath,self.dataset)
-        if self.flip == 1:
-            # flip all volumes done 
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels same_transformation_for_all_angles timepoint_"+times+"_all_channels_illumination_0_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]")
-            string = IJ.d2s(zdim_correct_shift,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels same_transformation_for_all_angles timepoint_"+times+"_all_channels_illumination_0_all_angles=[0,0,"+string+"]")
           
         if  (times.find('-')==-1 and times.find(',')==-1) and (len(self.csvtoarray(channels,'int'))>1):
             print('single time, multiple channel')
@@ -581,13 +580,11 @@ class dOPMMVF:
                  
 
 def main():
-    flipchoices = ["no","yes"]
     choices =["Transform & register beads", "Transform & register data","Transform two-view data without registering","Transform one-view data"]
     # Create an instance of GenericDialog
     gui = GenericDialogPlus("dOPM data processing with Multi-view fusion plugin")
     gui.addMessage("Select dOPM data processing option")
     gui.addChoice("Choose one option among a list", choices, choices[0])
-    gui.addChoice("Does data need flipping axially?", flipchoices, flipchoices[0])
     #gui.addHelp(r"https://imagej.net/Generic_dialog") # clicking the help button will open the provided URL in the default browser
     gui.showDialog() # dont forget to actually display the dialog at some point
     # If the GUI is closed by clicking OK, then recover the inputs in order of "appearance"
@@ -596,7 +593,6 @@ def main():
         filepatternchoices = ["spim_Time{tttt}_Tile{xxxx}_angle{a}","spim_Time{tttt}_Tile{xxxx}_channel{c}_angle{a}"]
         extenstionchoices = [".nd2",".tif",".tiff"]
         inChoice = gui.getNextChoice() # one could alternatively call the getNextChoiceIndex too
-        flip_ = int(gui.getNextChoice()==flipchoices[1])
         if inChoice == choices[0]: #"Transform & register beads"
             gui = GenericDialogPlus(inChoice) 
             gui.addDirectoryOrFileField("Bead data folder", prefs.get(None, "datapath_",""))
@@ -628,8 +624,7 @@ def main():
                 extension=extension_, \ 
                 px=pixel_, \ 
                 py=pixel_, \ 
-                angle=angle_, \
-                flip = flip_)     
+                angle=angle_)     
                       
                 beads.createXMLdataset()
                 beads.getCalibrations()
@@ -673,12 +668,24 @@ def main():
                 extension=extension_, \ 
                 px=pixel_, \ 
                 py=pixel_, \ 
-                angle=angle_, \
-                flip = flip_)      
+                angle=angle_)      
 
                 sample.createXMLdataset()
                 sample.getCalibrations()
                 sample.ApplyCalibration()
+                
+                # ######## go grab most recent bead reg info
+                beads=dOPMMVF(\
+                datapath=beadpath_, \
+                regpath= r'', \
+                filepattern=filepattern_, \ #'spim_Time000{t}_Tile000{x}_channel{c}_angle{a}'
+                extension=extension_, \ 
+                px=pixel_, \ 
+                py=pixel_, \ 
+                angle=angle_)     
+                beads.getAffineTransformations()
+                # ######## go grab most recent bead reg info
+              
                 sample.ApplyBeadRegCSV()
                 
                                           
@@ -713,8 +720,7 @@ def main():
                 extension=extension_, \ 
                 px=pixel_, \ 
                 py=pixel_, \ 
-                angle=angle_, \
-                flip = flip_)        
+                angle=angle_)        
                       
                 sample.createXMLdataset()
                 sample.getCalibrations()
@@ -727,5 +733,6 @@ def main():
 
     
 if __name__ in ['__builtin__','__main__']:
-     
+    
     main()
+    IJ.log("Finished")

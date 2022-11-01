@@ -76,9 +76,11 @@ class MVF:
     
 def main():
     # Create an instance of GenericDialog
-    gui = GenericDialogPlus("Definbe bounding box for dataset")
-    gui.addDirectoryOrFileField("Select dataset", prefs.get(None, "datapath_",""))
-    gui.addDirectoryOrFileField("Select corresponding bead dataset", prefs.get(None, "beadpath_",""))
+    gui = GenericDialogPlus("Define bounding box for dataset")
+    gui.addDirectoryOrFileField("apply bounding box to dataset:", prefs.get(None, "datapath_",""))
+    gui.addDirectoryOrFileField("get bounding box from bead dataset:", prefs.get(None, "beadpath_",""))
+    methodchoice = ["define box","use existing box"]
+    gui.addChoice("Reuse a bounding box definition or make a new one?", methodchoice, methodchoice[0]) #
     gui.showDialog() # dont forget to actually display the dialog at some point
 
     if gui.wasOKed():
@@ -91,9 +93,10 @@ def main():
          
         BoundingBox=MVF(datapath=datapath_,beadpath=beadpath_) 
         # BoundingBox.deleteBoundingBox(beadpath_)
-        
-        # define bounding box based on corresponding bead volume
-        BoundingBox.defineBoundingBox(beadpath_)
+        if methodchoice[0] == gui.getNextChoice():
+            # define bounding box based on corresponding bead volume
+            BoundingBox.defineBoundingBox(beadpath_)
+   
         BB = BoundingBox.getXMLBoundingBox(beadpath_)
         
         # apply bead volume defined bounding box to data
@@ -104,5 +107,5 @@ def main():
 if __name__ in ['__builtin__','__main__']:
      
     main()
-    
+    IJ.log("Finished")
     

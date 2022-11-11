@@ -6,8 +6,10 @@ from  os.path import isfile
 from sys import path
 from java.lang.System import getProperty
 
-code_path = 'C:/Users/CRICKOPMuser/Documents/GitHub/dOPM_Shared_ImageJ_Scripts/testing'
-#code_path = getProperty('fiji.dir') + '/plugins/Scripts/dOPM'
+#code_path = 'C:/Users/CRICKOPMuser/Documents/GitHub/dOPM_Shared_ImageJ_Scripts/testing'
+code_path = getProperty('fiji.dir') + '/bin'
+
+
 
 # Delete the compiled class file otherwise we can not dynamically update the imported module
 ScriptPath = code_path+"/dopmmvr$py.class"

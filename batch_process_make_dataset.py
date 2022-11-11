@@ -9,8 +9,8 @@ from  os.path import isfile
 from sys import path
 from java.lang.System import getProperty
 
-code_path = 'C:/Users/CRICKOPMuser/Documents/GitHub/dOPM_Shared_ImageJ_Scripts/testing'
-#code_path = getProperty('fiji.dir') + '/plugins/Scripts/dOPM'
+#code_path = 'C:/Users/CRICKOPMuser/Documents/GitHub/dOPM_Shared_ImageJ_Scripts/testing'
+code_path = getProperty('fiji.dir') + '/bin'
 
 # Delete the compiled class file otherwise we can not dynamically update the imported module
 ScriptPath = code_path+"/dopmmvr$py.class"
@@ -30,43 +30,23 @@ def main():
     choices =["yes","no"]
    
     # Create an instance of GenericDialog
-    gui = GenericDialogPlus("dOPM data processing with Multi-view fusion plugin")
-    
-    #gui.addChoice("Do you want to apply bead registration?", choices, choices[0])
-         
-    filepatternchoices = ["spim_Time{tttt}_Tile{xxxx}_angle{a}","spim_Time{tttt}_Tile{xxxx}_channel{c}_angle{a}"]
-    extenstionchoices = [".nd2",".tif",".tiff"]   
-    
+    gui = GenericDialogPlus("dOPM data processing with Multi-view fusion plugin") 
     gui.addDirectoryOrFileField("Choose bead dataset folder", prefs.get(None, "beadpath_",""))       
-    gui.addChoice("Image file extension", extenstionchoices, extenstionchoices[0]) 
-    gui.addChoice("File pattern", filepatternchoices, filepatternchoices[0]) 
-    gui.addNumericField("pixel size (um)", prefs.getFloat(None, "pixel_", 0), 2) 
-    gui.addNumericField("prism angle (degrees)", prefs.getFloat(None, "angle_", 0), 2) 
     gui.addChoice("Do you want to export the data to hdf5?", choices, choices[0])
     gui.showDialog() 
 
-    
     if gui.wasOKed():
     
         beadpath_ = gui.getNextString()
-        extension_ = gui.getNextChoice()
-        filepattern_ = gui.getNextChoice()
-        pixel_ = gui.getNextNumber()
-        angle_ = gui.getNextNumber()
-        exportdata = gui.getNextChoice()
+        exportdata = gui.getNextChoice()       
         
-        # ######## go grab most recent bead reg info
-        beads=mvrsetup(\
-        datapath=beadpath_, \
-        regpath= r'', \
-        filepattern=filepattern_, \ #'spim_Time000{t}_Tile000{x}_channel{c}_angle{a}'
-        extension=extension_, \ 
-        px=pixel_, \ 
-        py=pixel_, \ 
-        angle=angle_)     
-        beads.getAffineTransformations()
-        # ######## go grab most recent bead reg info    
-         
+        settingsfile = os.path.join(beadpath_,'dopmsettings.xml')
+        settings = readdopmxml(settingsfile) 
+        extension_ = settings['extension']
+        filepattern_ = settings['filepattern']
+        angle_ = float(settings['prismangle']) 
+        pixel_ = float(settings['pixelsize']) 
+               
         for folder in folders:
 
             print("Processing Folder: "+str(folder))
@@ -80,7 +60,6 @@ def main():
             py=pixel_, \ 
             angle=angle_)      
 
-
             sample.createXMLdataset()
             sample.getCalibrations()
             sample.ApplyCalibration()       
@@ -91,8 +70,6 @@ def main():
                 exportpath = os.path.join(str(folder),'hdf5') 
                 sample.createFolder(exportpath)           
                 sample.ResaveXMLtoHDF5(exportpath)
-
-
             
 if __name__ in ['__builtin__','__main__']:
     main()

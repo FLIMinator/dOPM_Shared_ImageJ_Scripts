@@ -937,7 +937,7 @@ class defineboundingbox:
         datapath = os.path.join(datapath,self.dataset) 
         IJ.run("Define Bounding Box", "select=["+datapath+"] process_angle=[All angles] process_channel=[All channels] process_illumination=[All illuminations] process_tile=[All tiles] process_timepoint=[All Timepoints] bounding_box=[Modify pre-defined Bounding Box] bounding_box_name=[My Bounding Box] bounding_box_title=[My Bounding Box] minimal_x="+BB[0][0]+" minimal_y="+BB[0][1]+" minimal_z="+BB[0][2]+" maximal_x="+BB[1][0]+" maximal_y="+BB[1][1]+" maximal_z="+BB[1][2]+"");
 
-    def OptimalBoundingBox(self,datapath):
+    def OptimalBoundingBox(self,datapath):
     
         settingsfile = os.path.join(datapath,'dopmsettings.xml')
         settings = readdopmxml(settingsfile)

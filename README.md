@@ -3,5 +3,6 @@ Sharing dOPM data processing scripts based in ImageJ and relying mainly on Multi
 
 ## Instructions
  - Put these scripts in fiji subfolder -> path-to-fiji\Fiji.app\plugins\Scripts\dOPM
+ - Use this version of Fiji (all others maybe not compatible) -> https://imperialcollegelondon.box.com/s/555qs9ufjrrh8b43ocry4gp4x0yhh36a
 
 

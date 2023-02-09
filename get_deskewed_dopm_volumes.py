@@ -7,7 +7,7 @@ from sys import path
 from java.lang.System import getProperty
 
 #code_path = 'C:/Users/CRICKOPMuser/Documents/GitHub/dOPM_Shared_ImageJ_Scripts/testing'
-code_path = getProperty('fiji.dir') + '/bin'
+code_path = getProperty('fiji.dir') + '/plugins/Scripts/dOPM'
 
 
 

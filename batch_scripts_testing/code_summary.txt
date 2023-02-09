@@ -1,0 +1,6 @@
+1 - nis elements acquiring data
+2 - imagej reslice data
+3 - imagej extract fused volumes
+
+make a simple version without beads that does not fuse
+

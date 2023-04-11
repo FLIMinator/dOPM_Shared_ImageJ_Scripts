@@ -1,0 +1,51 @@
+different versions of code
+
+GUI simple version no batch - everyone can use this
+
+GUI with batch
+no GUI scriptable
+no GUI scriptable and complete metadata
+
+other three are not reliably working
+
+priorities:
+- process recent datasets for Colin
+- link metadata to deskewed data such as well location
+- be compatible with newest version of plugin and imagej
+
+things was looking into:
+
+- running over folder of datasets to batch relies on single bead set potentially or pairing
+- recommending bounding box dimensions automatically
+- writing a metadata xml file
+
+
+Ideal code:
+
+- scriptable steps
+1- register beads
+2- apply to data
+3- extract fused datasets
+4- connect fused data to metadata
+
+All of the above is recorded and can be rerun on the raw data
+
+Best code for documentation is Colin's old code
+- scripts per datasets to register beads
+- scripts per dataset to get fused volumes
+- all of these scripts are called with a .bat file calls imagej per job in series with command line calls
+- has no gui involvement
+
+Ideal combination would be gui for beads work to check registration worked and bounding box choice worked and scripts for rest of data:
+
+apply registration or just reskew
+apply bounding box or don't
+bin data or don't
+
+colins data example
+- bead folders per day, 100s organoids per day
+- register beads, apply to data, choose random bounding box based on beads, apply this to data, run fusion call on data saving to a subfolder
+
+current code is guified, make this work for colins one day data then make it scriptable but not time critical as colin stuff is just single day
+
+make this work on newest fiji and plugin and make it work with metadata

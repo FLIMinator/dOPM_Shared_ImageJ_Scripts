@@ -21,10 +21,9 @@ from ome.units import UNITS
 class dOPMMVF:
 
     def __init__(self, **kwargs):
-        valid_keys = ["datapath","regpath","filepattern","extension","px","py","angle"]
+        valid_keys = ["datapath","regpath","filepattern","extension","px","py","angle","prefix"]
         for key in valid_keys:
             setattr(self, key, kwargs.get(key))
-        self.filepattern_ = self.filepattern
         self.filepattern = self.filepattern+self.extension
         #self.datapath = os.path.abspath(self.datapath)
         #self.regpath = os.path.abspath(self.regpath)
@@ -37,14 +36,25 @@ class dOPMMVF:
         
     def GetImageInfo(self):    
             
-        if self.filepattern_ == "spim_Time{tttt}_Tile{xxxx}_channel{c}_angle{a}":    
+        if "spim_Time{tttt}_Tile{xxxx}_channel{c}_angle{a}" in self.filepattern : 
+            print('blah1')
             csplit=3
             tsplit=1
             tilesplit=2
-        elif self.filepattern_ == "spim_Time{tttt}_Tile{xxxx}_angle{a}":    
+            if "_" in self.prefix:
+                csplit+=1
+                tsplit+=1
+                tilesplit+=1
+        elif "spim_Time{tttt}_Tile{xxxx}_angle{a}" in self.filepattern : 
+            print('blah2')
             csplit=-1
             tsplit=1
             tilesplit=2
+            if "_" in self.prefix:
+                print('blah3')
+                csplit+=1
+                tsplit+=1
+                tilesplit+=1
         else:
             print 'unexpected file pattern'      
             
@@ -54,9 +64,9 @@ class dOPMMVF:
         tiles= []
         hyperstack = -1
         
-        results += [each for each in os.listdir(self.datapath) if each.endswith(self.extension) and each.startswith('spim')]
-        times += [ str(int(each.split('_')[tsplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension) and each.startswith('spim')]
-        tiles += [ str(int(each.split('_')[tilesplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension) and each.startswith('spim')]
+        results += [each for each in os.listdir(self.datapath) if each.endswith(self.extension) and each.startswith(self.prefix+'spim')]
+        times += [ str(int(each.split('_')[tsplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension) and each.startswith(self.prefix+'spim')]
+        tiles += [ str(int(each.split('_')[tilesplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension) and each.startswith(self.prefix+'spim')]
 
         
         T = set(times)
@@ -91,6 +101,7 @@ class dOPMMVF:
                 C= ','.join(C)          
                 
             elif self.extension=='.nd2':
+                print("blah4")
                 # read in and display ImagePlus object(s)
                 reader = ImageReader()
                 omeMeta = MetadataTools.createOMEXMLMetadata()
@@ -161,13 +172,13 @@ class dOPMMVF:
         ext = 'tif'
         
         if any(self.extension==i for i in tiff_names):
-            IJ.run("Define Multi-View Dataset", "define_dataset=[Manual Loader (TIFF only, ImageJ Opener)] project_filename=["+self.dataset+"] multiple_timepoints=[YES (one file per time-point)] multiple_channels=[YES (one file per channel)] _____multiple_illumination_directions=[NO (one illumination direction)] multiple_angles=[YES (one file per angle)] multiple_tiles=[YES (one file per tile)] image_file_directory=["+self.datapath+"] image_file_pattern="+self.filepattern+" timepoints_="+times+" channels_="+channels+" acquisition_angles_="+angles+" tiles_="+tiles+" calibration_type=[Same voxel-size for all views] calibration_definition=[Load voxel-size(s) from file(s) and display for verification] imglib2_data_container=[ArrayImg (faster)] pixel_distance_x="+px+" pixel_distance_y="+py+" pixel_distance_z="+pz+" pixel_unit=microns")
+            IJ.run("Define Multi-View Dataset", "define_dataset=[Manual Loader (TIFF only, ImageJ Opener)] project_filename=["+self.dataset+"] multiple_timepoints=[YES (one file per time-point)] multiple_channels=[YES (one file per channel)] _____multiple_illumination_directions=[NO (one illumination direction)] multiple_angles=[YES (one file per angle)] multiple_tiles=[YES (one file per tile)] image_file_directory=["+self.datapath+"] image_file_pattern="+self.prefix+self.filepattern+" timepoints_="+times+" channels_="+channels+" acquisition_angles_="+angles+" tiles_="+tiles+" calibration_type=[Same voxel-size for all views] calibration_definition=[Load voxel-size(s) from file(s) and display for verification] imglib2_data_container=[ArrayImg (faster)] pixel_distance_x="+px+" pixel_distance_y="+py+" pixel_distance_z="+pz+" pixel_unit=microns")
         elif self.dims[9]==1:
             #print 'dataset from multiple channel per file nd2'
-            IJ.run("Define Multi-View Dataset", "define_dataset=[Manual Loader (Bioformats based)] project_filename=["+self.dataset+"] multiple_timepoints=[YES (one file per time-point)] multiple_channels=[YES (all channels in one file)] _____multiple_illumination_directions=[NO (one illumination direction)] multiple_angles=[YES (one file per angle)] multiple_tiles=[YES (one file per tile)] image_file_directory=["+self.datapath+"] image_file_pattern="+self.filepattern+" timepoints_="+times+" channels_="+channels+" acquisition_angles_="+angles+" tiles_="+tiles+" calibration_type=[Same voxel-size for all views] calibration_definition=[Load voxel-size(s) from file(s) and display for verification] imglib2_data_container=[ArrayImg (faster)] pixel_distance_x="+px+" pixel_distance_y="+py+" pixel_distance_z="+pz+" pixel_unit=microns")    
+            IJ.run("Define Multi-View Dataset", "define_dataset=[Manual Loader (Bioformats based)] project_filename=["+self.dataset+"] multiple_timepoints=[YES (one file per time-point)] multiple_channels=[YES (all channels in one file)] _____multiple_illumination_directions=[NO (one illumination direction)] multiple_angles=[YES (one file per angle)] multiple_tiles=[YES (one file per tile)] image_file_directory=["+self.datapath+"] image_file_pattern="+self.prefix+self.filepattern+" timepoints_="+times+" channels_="+channels+" acquisition_angles_="+angles+" tiles_="+tiles+" calibration_type=[Same voxel-size for all views] calibration_definition=[Load voxel-size(s) from file(s) and display for verification] imglib2_data_container=[ArrayImg (faster)] pixel_distance_x="+px+" pixel_distance_y="+py+" pixel_distance_z="+pz+" pixel_unit=microns")    
         elif self.dims[9]==0:
             #print 'dataset from one channel per file nd2'
-            IJ.run("Define Multi-View Dataset", "define_dataset=[Manual Loader (Bioformats based)] project_filename=["+self.dataset+"] multiple_timepoints=[YES (one file per time-point)] multiple_channels=[YES (one file per channel)] _____multiple_illumination_directions=[NO (one illumination direction)] multiple_angles=[YES (one file per angle)] multiple_tiles=[YES (one file per tile)] image_file_directory=["+self.datapath+"] image_file_pattern="+self.filepattern+" timepoints_="+times+" channels_="+channels+" acquisition_angles_="+angles+" tiles_="+tiles+" calibration_type=[Same voxel-size for all views] calibration_definition=[Load voxel-size(s) from file(s) and display for verification] imglib2_data_container=[ArrayImg (faster)] pixel_distance_x="+px+" pixel_distance_y="+py+" pixel_distance_z="+pz+" pixel_unit=microns")
+            IJ.run("Define Multi-View Dataset", "define_dataset=[Manual Loader (Bioformats based)] project_filename=["+self.dataset+"] multiple_timepoints=[YES (one file per time-point)] multiple_channels=[YES (one file per channel)] _____multiple_illumination_directions=[NO (one illumination direction)] multiple_angles=[YES (one file per angle)] multiple_tiles=[YES (one file per tile)] image_file_directory=["+self.datapath+"] image_file_pattern="++self.prefix+self.filepattern+" timepoints_="+times+" channels_="+channels+" acquisition_angles_="+angles+" tiles_="+tiles+" calibration_type=[Same voxel-size for all views] calibration_definition=[Load voxel-size(s) from file(s) and display for verification] imglib2_data_container=[ArrayImg (faster)] pixel_distance_x="+px+" pixel_distance_y="+py+" pixel_distance_z="+pz+" pixel_unit=microns")
         else:
             print 'wrong image formate during createXMLdataset'
         
@@ -599,7 +610,8 @@ def main():
             gui.addChoice("Image file extension", extenstionchoices, extenstionchoices[0]) #
             gui.addToSameRow()
             #gui.addFileField("Scan folder to check file type", prefs.get(None, "datapath_",""))
-            gui.addChoice("File pattern", filepatternchoices, filepatternchoices[0]) #
+            gui.addStringField("Add prefix to file name pattern i.e type 15min","") #
+            gui.addChoice("File pattern prefix", filepatternchoices, filepatternchoices[0]) #
             gui.addNumericField("pixel size (um)", prefs.getFloat(None, "pixel_", 0), 2) 
             gui.addNumericField("prism angle (degrees)", prefs.getFloat(None, "angle_", 0), 2) 
             gui.showDialog()      
@@ -607,7 +619,9 @@ def main():
                 datapath_ = gui.getNextString()
                 extension_ = gui.getNextChoice()
                 #blank = gui.getNextString()
+                prefix_ = gui.getNextString()
                 filepattern_ = gui.getNextChoice()
+                print(filepattern_)
                 pixel_ = gui.getNextNumber()
                 angle_ = gui.getNextNumber()
                 # Save in memory using PrefService 
@@ -624,7 +638,8 @@ def main():
                 extension=extension_, \ 
                 px=pixel_, \ 
                 py=pixel_, \ 
-                angle=angle_)     
+                angle=angle_,\
+                prefix = prefix_)     
                       
                 beads.createXMLdataset()
                 beads.getCalibrations()
@@ -641,7 +656,8 @@ def main():
             gui.addChoice("Image file extension", extenstionchoices, extenstionchoices[0]) #
             gui.addToSameRow()
             #gui.addFileField("Scan folder to check file type", prefs.get(None, "datapath_",""))
-            gui.addChoice("File pattern", filepatternchoices, filepatternchoices[0]) #
+            gui.addStringField("Add prefix to file name pattern i.e type 15min","") #
+            gui.addChoice("File pattern prefix", filepatternchoices, filepatternchoices[0]) #
             gui.addNumericField("pixel size (um)", prefs.getFloat(None, "pixel_", 0), 2) 
             gui.addNumericField("prism angle (degrees)", prefs.getFloat(None, "angle_", 0), 2) 
             gui.showDialog()      
@@ -649,7 +665,8 @@ def main():
                 beadpath_ = gui.getNextString()
                 datapath_ = gui.getNextString()
                 extension_ = gui.getNextChoice()
-                #blank = gui.getNextString()
+                 #blank = gui.getNextString()
+                prefix_ = gui.getNextString()
                 filepattern_ = gui.getNextChoice()
                 pixel_ = gui.getNextNumber()
                 angle_ = gui.getNextNumber()
@@ -668,8 +685,9 @@ def main():
                 extension=extension_, \ 
                 px=pixel_, \ 
                 py=pixel_, \ 
-                angle=angle_)      
-
+                angle=angle_,\
+                prefix = prefix_) 
+                
                 sample.createXMLdataset()
                 sample.getCalibrations()
                 sample.ApplyCalibration()
@@ -682,7 +700,9 @@ def main():
                 extension=extension_, \ 
                 px=pixel_, \ 
                 py=pixel_, \ 
-                angle=angle_)     
+                angle=angle_,\
+                prefix = prefix_) 
+                
                 beads.getAffineTransformations()
                 # ######## go grab most recent bead reg info
               
@@ -695,14 +715,16 @@ def main():
             gui.addChoice("Image file extension", extenstionchoices, extenstionchoices[0]) #
             gui.addToSameRow()
             #gui.addFileField("Scan folder to check file type", prefs.get(None, "datapath_",""))
-            gui.addChoice("File pattern", filepatternchoices, filepatternchoices[0]) #
+            gui.addStringField("Add prefix to file name pattern i.e type 15min","") #
+            gui.addChoice("File pattern prefix", filepatternchoices, filepatternchoices[0]) #
             gui.addNumericField("pixel size (um)", prefs.getFloat(None, "pixel_", 0), 2) 
             gui.addNumericField("prism angle (degrees)", prefs.getFloat(None, "angle_", 0), 2) 
             gui.showDialog()      
             if gui.wasOKed(): 
                 datapath_ = gui.getNextString()
                 extension_ = gui.getNextChoice()
-                #blank = gui.getNextString()
+                 #blank = gui.getNextString()
+                prefix_ = gui.getNextString()
                 filepattern_ = gui.getNextChoice()
                 pixel_ = gui.getNextNumber()
                 angle_ = gui.getNextNumber()
@@ -720,7 +742,8 @@ def main():
                 extension=extension_, \ 
                 px=pixel_, \ 
                 py=pixel_, \ 
-                angle=angle_)        
+                angle=angle_,\
+                prefix = prefix_)         
                       
                 sample.createXMLdataset()
                 sample.getCalibrations()

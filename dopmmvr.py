@@ -24,6 +24,7 @@ from ij import IJ
 
 def readdopmxml(filename):
 
+<<<<<<< HEAD:dopmmvr.py
     tree = ET.parse(filename)
     root = tree.getroot()
     #ET.dump(root)    
@@ -33,6 +34,166 @@ def readdopmxml(filename):
     for elem in tree.iter():
         if elem.text:
             settings.update({elem.tag: elem.text})
+=======
+    def __init__(self, **kwargs):
+        valid_keys = ["datapath","regpath","filepattern","extension","px","py","angle"]
+        for key in valid_keys:
+            setattr(self, key, kwargs.get(key))
+        self.filepattern_ = self.filepattern
+        self.filepattern = self.filepattern+self.extension
+        #self.datapath = os.path.abspath(self.datapath)
+        #self.regpath = os.path.abspath(self.regpath)
+        self.dims = self.GetImageInfo()
+        self.dataset = 'dataset.xml'
+        self.registration_csv = 'registrations.csv'
+        self.calibration_csv = 'calibrations.csv'
+        self.calibfile = os.path.normpath(os.path.join(self.datapath,self.calibration_csv))
+        self.regfile = os.path.normpath(os.path.join(self.regpath,self.registration_csv))
+        
+    def GetImageInfo(self):    
+            
+        if self.filepattern_ == "spim_Time{tttt}_Tile{xxxx}_channel{c}_angle{a}":    
+            csplit=3
+            tsplit=1
+            tilesplit=2
+        elif self.filepattern_ == "spim_Time{tttt}_Tile{xxxx}_angle{a}":    
+            csplit=-1
+            tsplit=1
+            tilesplit=2
+        else:
+            print 'unexpected file pattern'      
+            
+        results = []
+        channels = []
+        times = []
+        tiles= []
+        hyperstack = -1
+        
+        results += [each for each in os.listdir(self.datapath) if each.endswith(self.extension)]
+        times += [ str(int(each.split('_')[tsplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension)]
+        tiles += [ str(int(each.split('_')[tilesplit].split('e')[1])) for each in os.listdir(self.datapath) if each.endswith(self.extension)]
+
+        
+        T = set(times)
+        T= ','.join(T)
+
+        Tiles = set(tiles)
+        Tiles= ','.join(Tiles)
+        
+        if len(results):
+        
+            file = os.path.join(self.datapath,results[0])
+                
+            tiff_names=['.tif','.tiff']
+
+            if any(self.extension==i for i in tiff_names):
+                imps = BF.openImagePlus(file)
+                imp = imps[0]
+                szX = imp.getCalibration().pixelWidth
+                szY = imp.getCalibration().pixelHeight
+                szZ = imp.getCalibration().pixelDepth
+                X=imp.getWidth()
+                Y=imp.getHeight()
+                Z=imp.getImageStackSize()
+                imp.close()
+    #            print xVox
+    #            print yVox
+    #            print zVox
+                hyperstack = 0
+                print 'processing tif zstacks'
+                channels += [ each.split('_')[csplit].split('l')[1] for each in os.listdir(self.datapath) if each.endswith(self.extension)]
+                C = set(channels)
+                C= ','.join(C)          
+                
+            elif self.extension=='.nd2':
+                # read in and display ImagePlus object(s)
+                reader = ImageReader()
+                omeMeta = MetadataTools.createOMEXMLMetadata()
+                reader.setMetadataStore(omeMeta)
+                reader.setId(file)
+                #seriesCount = reader.getSeriesCount()
+                X=reader.getSizeX()
+                Y=reader.getSizeY()
+                Z=reader.getSizeZ()
+        
+                #T=reader.getSizeT() # we dont use this
+                # physical calibration - assumes microns
+                szX = omeMeta.getPixelsPhysicalSizeX(0).value() # not correct dont use
+                szY = omeMeta.getPixelsPhysicalSizeY(0).value() # not correct dont use
+                szZ = omeMeta.getPixelsPhysicalSizeZ(0).value() # not correct dont use
+                
+                if reader.getSizeC()>1 and self.filepattern.find('channel')==-1:
+                    print 'processing nd2 hyperstacks'
+                    hyperstack = 1
+                    C=reader.getSizeC() # we don't use this
+                    for c in range(C):
+                        channels.append(str(c))
+                    C=','.join(channels)
+                    
+                elif reader.getSizeC()==1 and self.filepattern.find('channel')!=-1:
+                    hyperstack = 0
+                    print 'processing nd2 zstacks'
+                    channels += [ each.split('_')[csplit].split('l')[1] for each in os.listdir(self.datapath) if each.endswith(self.extension)]
+                    C = set(channels)
+                    C= ','.join(C)
+                    
+                elif reader.getSizeC()==1 and self.filepattern.find('channel')==-1:
+                    print 'processing nd2 hyperstacks'
+                    hyperstack = 1
+                    C=reader.getSizeC() # we don't use this
+                    for c in range(C):
+                        channels.append(str(c))
+                    C=','.join(channels)
+                    
+                reader.close()
+                
+            else:
+                print 'error in image format - does not match expected types'   
+            
+            print [X,Y,Z,T,C,szX,szY,szZ]
+            return [X,Y,Z,T,C,szX,szY,szZ,Tiles,hyperstack]
+        else:
+            print 'error in image format - does not match expected types'  
+            return []
+        
+    def createXMLdataset(self):
+        '''
+        takes dOPM z-stack parameters and acquisition parameters to create dataset - this can also be done using multiview fusion plugin application in imagej
+        uses imagej module IJ to run macro commands applicable to the multiview fusion plugin in imagej and programmatically add in strings for variables that need defining for each setup
+        '''
+        times = self.dims[3]
+        tiles = self.dims[8]
+        channels = self.dims[4]
+        pz = self.dims[7]
+        angles = "0-"+IJ.d2s(4*self.angle,0)+":"+IJ.d2s(4*self.angle,0)
+       
+        #print pz,py,px
+        px = IJ.d2s(self.px,4)
+        py = IJ.d2s(self.py,4)
+        pz = IJ.d2s(pz,4)
+        
+        tiff_names=['tif','tiff']
+        ext = 'tif'
+        
+        if any(self.extension==i for i in tiff_names):
+            IJ.run("Define Multi-View Dataset", "define_dataset=[Manual Loader (TIFF only, ImageJ Opener)] project_filename=["+self.dataset+"] multiple_timepoints=[YES (one file per time-point)] multiple_channels=[YES (one file per channel)] _____multiple_illumination_directions=[NO (one illumination direction)] multiple_angles=[YES (one file per angle)] multiple_tiles=[YES (one file per tile)] image_file_directory=["+self.datapath+"] image_file_pattern="+self.filepattern+" timepoints_="+times+" channels_="+channels+" acquisition_angles_="+angles+" tiles_="+tiles+" calibration_type=[Same voxel-size for all views] calibration_definition=[Load voxel-size(s) from file(s) and display for verification] imglib2_data_container=[ArrayImg (faster)] pixel_distance_x="+px+" pixel_distance_y="+py+" pixel_distance_z="+pz+" pixel_unit=microns")
+        elif self.dims[9]==1:
+            #print 'dataset from multiple channel per file nd2'
+            IJ.run("Define Multi-View Dataset", "define_dataset=[Manual Loader (Bioformats based)] project_filename=["+self.dataset+"] multiple_timepoints=[YES (one file per time-point)] multiple_channels=[YES (all channels in one file)] _____multiple_illumination_directions=[NO (one illumination direction)] multiple_angles=[YES (one file per angle)] multiple_tiles=[YES (one file per tile)] image_file_directory=["+self.datapath+"] image_file_pattern="+self.filepattern+" timepoints_="+times+" channels_="+channels+" acquisition_angles_="+angles+" tiles_="+tiles+" calibration_type=[Same voxel-size for all views] calibration_definition=[Load voxel-size(s) from file(s) and display for verification] imglib2_data_container=[ArrayImg (faster)] pixel_distance_x="+px+" pixel_distance_y="+py+" pixel_distance_z="+pz+" pixel_unit=microns")    
+        elif self.dims[9]==0:
+            #print 'dataset from one channel per file nd2'
+            IJ.run("Define Multi-View Dataset", "define_dataset=[Manual Loader (Bioformats based)] project_filename=["+self.dataset+"] multiple_timepoints=[YES (one file per time-point)] multiple_channels=[YES (one file per channel)] _____multiple_illumination_directions=[NO (one illumination direction)] multiple_angles=[YES (one file per angle)] multiple_tiles=[YES (one file per tile)] image_file_directory=["+self.datapath+"] image_file_pattern="+self.filepattern+" timepoints_="+times+" channels_="+channels+" acquisition_angles_="+angles+" tiles_="+tiles+" calibration_type=[Same voxel-size for all views] calibration_definition=[Load voxel-size(s) from file(s) and display for verification] imglib2_data_container=[ArrayImg (faster)] pixel_distance_x="+px+" pixel_distance_y="+py+" pixel_distance_z="+pz+" pixel_unit=microns")
+        else:
+            print 'wrong image formate during createXMLdataset'
+        
+    def createFolder(self,newpath):
+        #print self.directory
+        try:
+            if not os.path.exists(newpath):
+                os.makedirs(newpath)
+        except OSError:
+            print ('Error: Creating directory. ' +  newpath)
+>>>>>>> parent of c7b79d3 (filters out non 'spim' prefix  '.nd2' files):make_multiview_reconstruction_dataset.py
     
     filterstrings = ['extension','boundingboxmin','boundingboxmax','filepattern','pixelsize','prismangle','rawzplanes']
     

@@ -125,17 +125,23 @@ class mvrsetup:
         Tiles = set(tiles)
         Tiles= ','.join(Tiles)
         
+        print results
+        
         if len(results):
         
             file = os.path.join(self.datapath,results[0])
-                
+            
+            print file 
             tiff_names=['.tif','.tiff']
 
             if any(self.extension==i for i in tiff_names):
-                imps = BF.openImagePlus(file)
-                imp = imps[0]
-                szX = imp.getCalibration().pixelWidth
-                szY = imp.getCalibration().pixelHeight
+                #file.replace(r"\\",r"/") ffs 2311273
+                file.replace('\\','/')
+                #imps = BF.openImagePlus(file) ffs 2311273, bioformats not working....
+                imp = IJ.openImage(file)
+                #imp = imps[0]
+                szX = imp.getCalibration().pixelWidth # not correct dont use
+                szY = imp.getCalibration().pixelHeight # not correct dont use
                 szZ = imp.getCalibration().pixelDepth
                 X=imp.getWidth()
                 Y=imp.getHeight()
@@ -956,17 +962,19 @@ class defineboundingbox:
 
         d = round(zstack_microns/imp.getCalibration().pixelDepth)
         d_z = round(d / math.cos(2*prism_angle*math.pi/180))
-        d_y = round(d_z / math.tan(2*prism_angle*math.pi/180))
+        #d_y = round(d_z / math.tan(2*prism_angle*math.pi/180))
 
 
         bb_x = [0 - math.floor(offset[0]),\
                    imp.getWidth() - math.ceil(offset[0])]   
 
-        bb_y = [imp.getHeight()/2 - math.floor(d_y/2) - math.floor(offset[1]),\
-                   imp.getHeight()/2 + math.floor(d_y/2) - math.ceil(offset[1])]   
-                       
-        bb_z = [imp.getImageStackSize()/2 - math.floor(d_z/2) - math.floor(offset[2]),\
-                   imp.getImageStackSize()/2 + math.floor(d_z/2) - math.ceil(offset[2])]
+        #bb_y = [(imp.getHeight()/2 - math.floor(d_y/2)) - math.floor(offset[1]),\
+        #          (imp.getHeight()/2 + math.floor(d_y/2)) - math.ceil(offset[1])]   
+
+        bb_y = [- math.floor(offset[1]), imp.getHeight()- math.floor(offset[1])]
+                   
+        bb_z = [(imp.getImageStackSize()/2 - math.floor(d_z/2)) - math.floor(offset[2]),\
+                   (imp.getImageStackSize()/2 + math.floor(d_z/2)) - math.ceil(offset[2])]
                   
         imp.close();
 

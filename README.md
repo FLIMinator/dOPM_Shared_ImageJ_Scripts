@@ -9,6 +9,7 @@ Sharing dOPM data processing scripts based in ImageJ and relying mainly on Multi
  - Start using this version (all others maybe not compatible) -> https://imperialcollegelondon.app.box.com/s/2pc9iiusvuh36uc8arceoutrwxi193ul/file/1364388978888
      - as compatible with ClIJ - https://imagej.net/plugins/clij
      - good for doing fast image processing, use it for MIPS to summarise data - see dOPM plugin menu - MIPs
+        - Also download the other FIJI and start using this instead as it works with CLIJ and you can run fast MIP summaries on your data - expects you already have a fused dataset and it works on this 
  - added testing method for geometric prediction of bounding box in z direction based on dOPM remote scanning parallelepiped volumes, can cut data footprint down by 20% or more - useful at TB scale
      - STILL TESTING, not user friendly, does not work headless, - using the 'define bounding box for dataset' dOPM menu item
          - to use you first need to define bounding box - see dOPM menu, run this on bead data after you have setup the bead dataset

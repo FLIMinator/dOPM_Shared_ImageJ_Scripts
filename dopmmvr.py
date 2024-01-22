@@ -945,16 +945,19 @@ class defineboundingbox:
 
     def OptimalBoundingBox(self,datapath):
         print(datapath)
-        datapath = os.path.normpath(datapath);
-        print(datapath)
+        #datapath = os.path.normpath(datapath);
+        #print(datapath)
         settingsfile = os.path.join(datapath,'dopmsettings.xml')
-        print(settingsfile);
+        #print(settingsfile)
+        IJ.log(str(datapath))
+        IJ.log(str(settingsfile)) 
         settings = readdopmxml(settingsfile)
         zstack_microns = int(settings['rawzplanes'])
         prism_angle = float(settings['prismangle'])
         
         datapath_ = os.path.join(datapath,self.dataset) 
-        IJ.run("Fuse", "select="+datapath_+" process_angle=[All angles] process_channel=[Single channel (Select from List)] process_illumination=[All illuminations] process_tile=[Single tile (Select from List)] process_timepoint=[Single Timepoint (Select from List)] processing_channel=[channel 0] processing_tile=[tile 0] processing_timepoint=[Timepoint 0] bounding_box=[All Views] downsampling=1 pixel_type=[16-bit unsigned integer] interpolation=[Linear Interpolation] image=[Precompute Image] interest_points_for_non_rigid=[-= Disable Non-Rigid =-] blend produce=[Each timepoint & channel] fused_image=[Display using ImageJ]");
+        IJ.log(str(datapath_))
+        IJ.run("Fuse", "select=["+datapath_+"] process_angle=[All angles] process_channel=[Single channel (Select from List)] process_illumination=[All illuminations] process_tile=[Single tile (Select from List)] process_timepoint=[Single Timepoint (Select from List)] processing_channel=[channel 0] processing_tile=[tile 0] processing_timepoint=[Timepoint 0] bounding_box=[All Views] downsampling=1 pixel_type=[16-bit unsigned integer] interpolation=[Linear Interpolation] image=[Precompute Image] interest_points_for_non_rigid=[-= Disable Non-Rigid =-] blend produce=[Each timepoint & channel] fused_image=[Display using ImageJ]");
         imp = IJ.getImage()
 
         offset = [imp.getCalibration().xOrigin/imp.getCalibration().pixelWidth, \
@@ -1000,7 +1003,8 @@ class defineboundingbox:
 
         print settings
         
-        settingsfile = os.path.join(datapath,'dopmsettings.xml') 
+
+        settingsfile = os.path.join(datapath,'dopmsettings.xml') 
         writedopmxml(settingsfile,settings)
         
         BB = [[bb_x[0],bb_y[0],bb_z[0]],[bb_x[1],bb_y[1],bb_z[1]]]

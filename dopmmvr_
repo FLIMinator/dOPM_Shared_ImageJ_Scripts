@@ -700,21 +700,16 @@ class mvrgetvolumes:
         print 'times'
         print times_list
          
-        #for node in root.findall('./SequenceDescription/ViewSetups/ViewSetup/attributes/Tile/name'):
-        for node in root.findall('./SequenceDescription/ViewSetups/Attributes/Tile/name'):
-            #elem = node.find('tile').text
-            #tile_list.append(elem)
-            print node.text
-            tile_list.append(node.text)
-            
+        for node in root.findall('./SequenceDescription/ViewSetups/ViewSetup/attributes'):
+            elem = node.find('tile').text
+            tile_list.append(elem)
+
         for node in root.findall('./SequenceDescription/ViewSetups/Attributes/Angle/name'):
             print node.text
             angle_list.append(node.text)
-            
         print 'angles'   
         print angle_list     
-        print 'tiles'
-        print tile_list             
+              
         for i in range(len(tile_list)):
             tile_list[i]=int(tile_list[i])   
         tile_list = list(set(tile_list))  
@@ -743,7 +738,7 @@ class mvrgetvolumes:
         
         if len(tiles)==1:
             print 'a'
-            IJ.run("Fuse", "select=["+datasepath+"] process_angle=[All angles] process_channel=[All channels] process_illumination=[All illuminations] process_tile=[All tiles] process_timepoint=[All Timepoints] bounding_box=["+self.BB+"] downsampling="+self.binning+" pixel_type=[16-bit unsigned integer] interpolation=[Linear Interpolation] image=[Precompute Image] interest_points_for_non_rigid=[-= Disable Non-Rigid =-] blend produce=[Each timepoint & channel] fused_image=[Save as (compressed) TIFF stacks] output_file_directory=["+fusedpath+"] filename_addition=tile_"+str(tiles[0])+"");
+            IJ.run("Fuse", "select=["+datasepath+"] process_angle=[All angles] process_channel=[All channels] process_illumination=[All illuminations] process_tile=[All tiles] process_timepoint=[All Timepoints] bounding_box=["+self.BB+"] downsampling="+self.binning+" pixel_type=[16-bit unsigned integer] interpolation=[Linear Interpolation] image=[Precompute Image] interest_points_for_non_rigid=[-= Disable Non-Rigid =-] blend produce=[Each timepoint & channel] fused_image=[Save as (compressed) TIFF stacks] output_file_directory=["+fusedpath+"] filename_addition=tile "+str(tiles[0])+"");
         else:
         
             if len(times)==1:

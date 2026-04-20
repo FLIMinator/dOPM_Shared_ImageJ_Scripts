@@ -2,7 +2,7 @@
 datapath = datapath.getAbsolutePath()
 
 from ij import IJ
-from ij.io import FileSaver
+from ij.io import FileSaver, Opener
 from net.haesleinhuepf.clij2 import CLIJ2
 from fiji.util.gui import GenericDialogPlus
 import os
@@ -27,7 +27,7 @@ def getStackList(stackdir):
         parts = norm.split(os.sep)
         if 'MIP' in parts:
             continue
-        tiff_set.append(norm.replace(os.sep, '/'))
+        tiff_set.append(norm)
 
     tiff_set.sort()
     return tiff_set
@@ -40,12 +40,31 @@ def getPathParts(path):
     return [drive, path, file]
 
 
+def openImageRobust(path_):
+    path_ = os.path.normpath(path_)
+
+    imp = None
+
+    try:
+        imp = Opener().openImage(path_)
+    except:
+        imp = None
+
+    if imp is None:
+        try:
+            imp = IJ.openImage(path_)
+        except:
+            imp = None
+
+    return imp
+
+
 def getMIPsonFolder(datapath):
     MIPfolder = 'MIP'
     pathname = os.path.join(datapath, MIPfolder)
     createFolder(pathname)
 
-    stackdir = datapath.replace(os.sep, '/')
+    stackdir = os.path.normpath(datapath)
     tiff_set = getStackList(stackdir)
 
     if len(tiff_set) == 0:
@@ -56,45 +75,51 @@ def getMIPsonFolder(datapath):
 
     for tiff_stack in tiff_set:
         clij2 = CLIJ2.getInstance()
-        imp = IJ.openImage(tiff_stack)
+        imp = openImageRobust(tiff_stack)
 
         if imp is None:
             IJ.log("Could not open: " + tiff_stack)
             continue
 
-        dims = imp.getDimensions()  # x,y,c,z,t
-        imageInput = clij2.push(imp)
+        try:
+            dims = imp.getDimensions()  # x,y,c,z,t
+            imageInput = clij2.push(imp)
 
-        imageOutput1 = clij2.create([dims[0], dims[1]], imageInput.getNativeType())
-        clij2.maximumZProjection(imageInput, imageOutput1)
+            imageOutput1 = clij2.create([dims[0], dims[1]], imageInput.getNativeType())
+            clij2.maximumZProjection(imageInput, imageOutput1)
 
-        imageOutput2 = clij2.create([dims[3], dims[1]], imageInput.getNativeType())
-        clij2.maximumXProjection(imageInput, imageOutput2)
+            imageOutput2 = clij2.create([dims[3], dims[1]], imageInput.getNativeType())
+            clij2.maximumXProjection(imageInput, imageOutput2)
 
-        imageOutput3 = clij2.create([dims[0], dims[3]], imageInput.getNativeType())
-        clij2.maximumYProjection(imageInput, imageOutput3)
+            imageOutput3 = clij2.create([dims[0], dims[3]], imageInput.getNativeType())
+            clij2.maximumYProjection(imageInput, imageOutput3)
 
-        imageOutput4 = clij2.create([dims[0] + dims[3], dims[1]], imageInput.getNativeType())
-        clij2.combineHorizontally(imageOutput1, imageOutput2, imageOutput4)
+            imageOutput4 = clij2.create([dims[0] + dims[3], dims[1]], imageInput.getNativeType())
+            clij2.combineHorizontally(imageOutput1, imageOutput2, imageOutput4)
 
-        imageOutput5 = clij2.create([dims[3], dims[1]], imageInput.getNativeType())
-        imageOutput6 = clij2.create([dims[0] + dims[3], dims[1]], imageInput.getNativeType())
-        clij2.combineHorizontally(imageOutput3, imageOutput5, imageOutput6)
+            imageOutput5 = clij2.create([dims[3], dims[1]], imageInput.getNativeType())
+            imageOutput6 = clij2.create([dims[0] + dims[3], dims[1]], imageInput.getNativeType())
+            clij2.combineHorizontally(imageOutput3, imageOutput5, imageOutput6)
 
-        imageOutput7 = clij2.create([dims[0] + dims[3], dims[1] + dims[1]], imageInput.getNativeType())
-        clij2.combineVertically(imageOutput4, imageOutput6, imageOutput7)
+            imageOutput7 = clij2.create([dims[0] + dims[3], dims[1] + dims[1]], imageInput.getNativeType())
+            clij2.combineVertically(imageOutput4, imageOutput6, imageOutput7)
 
-        final_imp = clij2.pull(imageOutput7)
+            final_imp = clij2.pull(imageOutput7)
 
-        pathparts = getPathParts(tiff_stack)
-        fname = pathparts[2].split('.', 1)
-        filename = os.path.join(pathname, fname[0])
+            pathparts = getPathParts(tiff_stack)
+            fname = pathparts[2].split('.', 1)
+            filename = os.path.join(pathname, fname[0])
 
-        FileSaver(final_imp).saveAsTiff(filename + '.tif')
+            FileSaver(final_imp).saveAsTiff(filename + '.tif')
 
-        imp.close()
-        final_imp.close()
-        clij2.clear()
+            final_imp.close()
+
+        finally:
+            try:
+                imp.close()
+            except:
+                pass
+            clij2.clear()
 
 
 def find_dataset_output_folders(root_folder, volume_type, binning):

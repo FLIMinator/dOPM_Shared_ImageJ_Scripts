@@ -130,10 +130,6 @@ class mvrsetup(object):
 
         self.dims = self.GetImageInfo()
 
-    # -------------------------------------------------------------------------
-    # filename parsing helpers
-    # -------------------------------------------------------------------------
-
     @staticmethod
     def parse_spim_filename_static(filename):
         stem = os.path.splitext(os.path.basename(filename))[0]
@@ -284,10 +280,6 @@ class mvrsetup(object):
 
         times = sorted(set(times))
         return str(times[0])
-
-    # -------------------------------------------------------------------------
-    # metadata / dataset setup
-    # -------------------------------------------------------------------------
 
     def GetImageInfo(self):
         results = self.list_input_files()
@@ -484,7 +476,7 @@ class mvrsetup(object):
             if not os.path.exists(newpath):
                 os.makedirs(newpath)
         except OSError:
-            print ('Error: Creating directory. ' + newpath)
+            print('Error: Creating directory. ' + newpath)
 
     def csvtoarray(self, csv_string, type_):
         values = csv_string.split(',')
@@ -728,7 +720,6 @@ class mvrsetup(object):
         IJ.run("As HDF5", "select=[" + datapath + "] resave_angle=[All angles] resave_channel=[All channels] resave_illumination=[All illuminations] resave_tile=[All tiles] resave_timepoint=[All Timepoints] subsampling_factors=[{ {1,1,1}, {2,2,1} }] hdf5_chunk_sizes=[{ {32,16,8}, {16,16,16} }] timepoints_per_partition=1 setups_per_partition=0 use_deflate_compression export_path=[" + exportpath + "]")
 
     def transformXMLdataset(self):
-
         times = self.dims[3]
         channels = self.dims[4]
         zplanes = self.dims[2]
@@ -736,96 +727,76 @@ class mvrsetup(object):
         ydim = self.dims[1]
         pz = self.dims[7]
 
-        pix = IJ.d2s(self.px,4)
-        piy = IJ.d2s(self.py,4)
-        piz = IJ.d2s(pz,4)
+        Angle_ = 2 * self.angle
+        Angle = IJ.d2s(4 * self.angle, 0)
 
-        Angle_ = 2*self.angle
-        Angle = IJ.d2s(4*self.angle,0)
-
-        zdim = math.floor(zplanes*pz/self.px)
-        mirror_angle = (math.pi/180)*self.angle
+        zdim = math.floor(zplanes * pz / self.px)
+        mirror_angle = (math.pi / 180) * self.angle
         tan0 = math.tan(mirror_angle)
-        ydim_deskewed = math.floor(ydim + zdim*tan0)
-        zdim_correct_shift = math.floor(zdim/math.cos(mirror_angle))
-        tan0 = IJ.d2s(tan0,6)
-        datapath = os.path.join(self.datapath,self.dataset)
+        ydim_deskewed = math.floor(ydim + zdim * tan0)
+        zdim_correct_shift = math.floor(zdim / math.cos(mirror_angle))
+        tan0 = IJ.d2s(tan0, 6)
+        datapath = os.path.join(self.datapath, self.dataset)
 
-        if  (times.find('-')==-1 and times.find(',')==-1) and (len(self.csvtoarray(channels,'int'))>1):
+        if (times.find('-') == -1 and times.find(',') == -1) and (len(self.csvtoarray(channels, 'int')) > 1):
             print('single time, multiple channel')
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels same_transformation_for_all_angles timepoint_"+times+"_all_channels_illumination_0_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0,"+tan0+", 0.0, 0.0, 0.0, 1.0, 0.0]")
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels timepoint_"+times+"_all_channels_illumination_0_angle_"+Angle+"=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]")
-            string = IJ.d2s(zdim_correct_shift,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels timepoint_"+times+"_all_channels_illumination_0_angle_"+Angle+"=[0,0,"+string+"]")
-            string1 = IJ.d2s(math.floor(xdim/2),0)
-            string2 = IJ.d2s(math.floor(ydim_deskewed/2),0)
-            string3 = IJ.d2s(math.floor(zdim_correct_shift/2),0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels same_transformation_for_all_angles timepoint_"+times+"_all_channels_illumination_0_all_angles=[-"+string1+",-"+string2+",-" +string3+"]")
-            string = IJ.d2s(Angle_,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle 0] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_channels axis_timepoint_"+times+"_all_channels_illumination_0_angle_0=x-axis rotation_timepoint_"+times+"_all_channels_illumination_0_angle_0="+string+"")
-            string = IJ.d2s(Angle_,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_channels axis_timepoint_"+times+"_all_channels_illumination_0_angle_"+Angle+"=x-axis rotation_timepoint_"+times+"_all_channels_illumination_0_angle_"+Angle+"=-"+string+"")
-            string1 = IJ.d2s(math.floor(xdim/2),0)
-            string2 = IJ.d2s(math.floor(ydim_deskewed/2),0)
-            string3 = IJ.d2s(math.floor(zdim_correct_shift/2),0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels same_transformation_for_all_angles timepoint_"+times+"_all_channels_illumination_0_all_angles=["+string1+","+string2+"," +string3+"]")
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels same_transformation_for_all_angles timepoint_" + times + "_all_channels_illumination_0_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0," + tan0 + ", 0.0, 0.0, 0.0, 1.0, 0.0]")
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels timepoint_" + times + "_all_channels_illumination_0_angle_" + Angle + "=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]")
+            string = IJ.d2s(zdim_correct_shift, 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels timepoint_" + times + "_all_channels_illumination_0_angle_" + Angle + "=[0,0," + string + "]")
+            string1 = IJ.d2s(math.floor(xdim / 2), 0)
+            string2 = IJ.d2s(math.floor(ydim_deskewed / 2), 0)
+            string3 = IJ.d2s(math.floor(zdim_correct_shift / 2), 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels same_transformation_for_all_angles timepoint_" + times + "_all_channels_illumination_0_all_angles=[-" + string1 + ",-" + string2 + ",-" + string3 + "]")
+            string = IJ.d2s(Angle_, 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle 0] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_channels axis_timepoint_" + times + "_all_channels_illumination_0_angle_0=x-axis rotation_timepoint_" + times + "_all_channels_illumination_0_angle_0=" + string)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_channels axis_timepoint_" + times + "_all_channels_illumination_0_angle_" + Angle + "=x-axis rotation_timepoint_" + times + "_all_channels_illumination_0_angle_" + Angle + "=-" + string)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_channels same_transformation_for_all_angles timepoint_" + times + "_all_channels_illumination_0_all_angles=[" + string1 + "," + string2 + "," + string3 + "]")
 
-        elif (times.find('-')==-1 and times.find(',')==-1) and (len(self.csvtoarray(channels,'int'))==1):
+        elif (times.find('-') == -1 and times.find(',') == -1) and (len(self.csvtoarray(channels, 'int')) == 1):
             print('single time, single channel')
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_angles timepoint_"+times+"_channel_"+channels+"_illumination_0_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0,"+tan0+", 0.0, 0.0, 0.0, 1.0, 0.0]")
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Affine apply=[Current view transformations (appends to current transforms)] timepoint_"+times+"_channel_"+channels+"_illumination_0_angle_"+Angle+"=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]")
-            string = IJ.d2s(zdim_correct_shift,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Translation apply=[Current view transformations (appends to current transforms)] timepoint_"+times+"_channel_"+channels+"_illumination_0_angle_"+Angle+"=[0,0,"+string+"]")
-            string1 = IJ.d2s(math.floor(xdim/2),0)
-            string2 = IJ.d2s(math.floor(ydim_deskewed/2),0)
-            string3 = IJ.d2s(math.floor(zdim_correct_shift/2),0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_angles timepoint_"+times+"_channel_"+channels+"_illumination_0_all_angles=[-"+string1+",-"+string2+",-" +string3+"]")
-            string = IJ.d2s(Angle_,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle 0] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] axis_timepoint_"+times+"_channel_"+channels+"_illumination_0_angle_0=x-axis rotation_timepoint_"+times+"_channel_"+channels+"_illumination_0_angle_0="+string+"")
-            string = IJ.d2s(Angle_,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] axis_timepoint_"+times+"_channel_"+channels+"_illumination_0_angle_"+Angle+"=x-axis rotation_timepoint_"+times+"_channel_"+channels+"_illumination_0_angle_"+Angle+"=-"+string+"")
-            string1 = IJ.d2s(math.floor(xdim/2),0)
-            string2 = IJ.d2s(math.floor(ydim_deskewed/2),0)
-            string3 = IJ.d2s(math.floor(zdim_correct_shift/2),0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_angles timepoint_"+times+"_channel_"+channels+"_illumination_0_all_angles=["+string1+","+string2+"," +string3+"]")
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_angles timepoint_" + times + "_channel_" + channels + "_illumination_0_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0," + tan0 + ", 0.0, 0.0, 0.0, 1.0, 0.0]")
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Affine apply=[Current view transformations (appends to current transforms)] timepoint_" + times + "_channel_" + channels + "_illumination_0_angle_" + Angle + "=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]")
+            string = IJ.d2s(zdim_correct_shift, 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Translation apply=[Current view transformations (appends to current transforms)] timepoint_" + times + "_channel_" + channels + "_illumination_0_angle_" + Angle + "=[0,0," + string + "]")
+            string1 = IJ.d2s(math.floor(xdim / 2), 0)
+            string2 = IJ.d2s(math.floor(ydim_deskewed / 2), 0)
+            string3 = IJ.d2s(math.floor(zdim_correct_shift / 2), 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_angles timepoint_" + times + "_channel_" + channels + "_illumination_0_all_angles=[-" + string1 + ",-" + string2 + ",-" + string3 + "]")
+            string = IJ.d2s(Angle_, 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle 0] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] axis_timepoint_" + times + "_channel_" + channels + "_illumination_0_angle_0=x-axis rotation_timepoint_" + times + "_channel_" + channels + "_illumination_0_angle_0=" + string)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] axis_timepoint_" + times + "_channel_" + channels + "_illumination_0_angle_" + Angle + "=x-axis rotation_timepoint_" + times + "_channel_" + channels + "_illumination_0_angle_" + Angle + "=-" + string)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_angles timepoint_" + times + "_channel_" + channels + "_illumination_0_all_angles=[" + string1 + "," + string2 + "," + string3 + "]")
 
-        elif (times.find('-')!=-1 or times.find(',')!=-1) and (len(self.csvtoarray(channels,'int'))==1):
+        elif (times.find('-') != -1 or times.find(',') != -1) and (len(self.csvtoarray(channels, 'int')) == 1):
             print('multiple time, single channel')
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_angles all_timepoints_channel_"+channels+"_illumination_0_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0,"+tan0+", 0.0, 0.0, 0.0, 1.0, 0.0]")
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints all_timepoints_channel_"+channels+"_illumination_0_angle_"+Angle+"=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]")
-            string = IJ.d2s(zdim_correct_shift,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints all_timepoints_channel_"+channels+"_illumination_0_angle_"+Angle+"=[0,0,"+string+"]")
-            string1 = IJ.d2s(math.floor(xdim/2),0)
-            string2 = IJ.d2s(math.floor(ydim_deskewed/2),0)
-            string3 = IJ.d2s(math.floor(zdim_correct_shift/2),0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_angles all_timepoints_channel_"+channels+"_illumination_0_all_angles=[-"+string1+",-"+string2+",-" +string3+"]")
-            string = IJ.d2s(Angle_,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle 0] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_timepoints axis_all_timepoints_channel_"+channels+"_illumination_0_angle_0=x-axis rotation_all_timepoints_channel_"+channels+"_illumination_0_angle_0="+string+"")
-            string = IJ.d2s(Angle_,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_timepoints axis_all_timepoints_channel_"+channels+"_illumination_0_angle_"+Angle+"=x-axis rotation_all_timepoints_channel_"+channels+"_illumination_0_angle_"+Angle+"=-"+string+"")
-            string1 = IJ.d2s(math.floor(xdim/2),0)
-            string2 = IJ.d2s(math.floor(ydim_deskewed/2),0)
-            string3 = IJ.d2s(math.floor(zdim_correct_shift/2),0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_angles all_timepoints_channel_"+channels+"_illumination_0_all_angles=["+string1+","+string2+"," +string3+"]")
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_angles all_timepoints_channel_" + channels + "_illumination_0_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0," + tan0 + ", 0.0, 0.0, 0.0, 1.0, 0.0]")
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints all_timepoints_channel_" + channels + "_illumination_0_angle_" + Angle + "=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]")
+            string = IJ.d2s(zdim_correct_shift, 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints all_timepoints_channel_" + channels + "_illumination_0_angle_" + Angle + "=[0,0," + string + "]")
+            string1 = IJ.d2s(math.floor(xdim / 2), 0)
+            string2 = IJ.d2s(math.floor(ydim_deskewed / 2), 0)
+            string3 = IJ.d2s(math.floor(zdim_correct_shift / 2), 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_angles all_timepoints_channel_" + channels + "_illumination_0_all_angles=[-" + string1 + ",-" + string2 + ",-" + string3 + "]")
+            string = IJ.d2s(Angle_, 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle 0] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_timepoints axis_all_timepoints_channel_" + channels + "_illumination_0_angle_0=x-axis rotation_all_timepoints_channel_" + channels + "_illumination_0_angle_0=" + string)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_timepoints axis_all_timepoints_channel_" + channels + "_illumination_0_angle_" + Angle + "=x-axis rotation_all_timepoints_channel_" + channels + "_illumination_0_angle_" + Angle + "=-" + string)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_angles all_timepoints_channel_" + channels + "_illumination_0_all_angles=[" + string1 + "," + string2 + "," + string3 + "]")
 
-        elif (times.find('-')!=-1 or times.find(',')!=-1) and (len(self.csvtoarray(channels,'int'))>1):
+        elif (times.find('-') != -1 or times.find(',') != -1) and (len(self.csvtoarray(channels, 'int')) > 1):
             print('multiple time, multiple channel')
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_angles same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0,"+tan0+", 0.0, 0.0, 0.0, 1.0, 0.0]")
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_angle_"+Angle+"=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]")
-            string = IJ.d2s(zdim_correct_shift,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_angle_"+Angle+"=[0,0,"+string+"]")
-            string1 = IJ.d2s(math.floor(xdim/2),0)
-            string2 = IJ.d2s(math.floor(ydim_deskewed/2),0)
-            string3 = IJ.d2s(math.floor(zdim_correct_shift/2),0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_angles same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_all_angles=[-"+string1+",-"+string2+",-" +string3+"]")
-            string = IJ.d2s(Angle_,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle 0] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles axis_all_timepoints_all_channels_illumination_0_angle_0=x-axis rotation_all_timepoints_all_channels_illumination_0_angle_0="+string+"")
-            string = IJ.d2s(Angle_,0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle "+Angle+"] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles axis_all_timepoints_all_channels_illumination_0_angle_"+Angle+"=x-axis rotation_all_timepoints_all_channels_illumination_0_angle_"+Angle+"=-"+string+"")
-            string1 = IJ.d2s(math.floor(xdim/2),0)
-            string2 = IJ.d2s(math.floor(ydim_deskewed/2),0)
-            string3 = IJ.d2s(math.floor(zdim_correct_shift/2),0)
-            IJ.run("Apply Transformations", "select=["+datapath+"] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_angles same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_all_angles=["+string1+","+string2+"," +string3+"]")
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_angles same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0," + tan0 + ", 0.0, 0.0, 0.0, 1.0, 0.0]")
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Affine apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_angle_" + Angle + "=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]")
+            string = IJ.d2s(zdim_correct_shift, 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_angle_" + Angle + "=[0,0," + string + "]")
+            string1 = IJ.d2s(math.floor(xdim / 2), 0)
+            string2 = IJ.d2s(math.floor(ydim_deskewed / 2), 0)
+            string3 = IJ.d2s(math.floor(zdim_correct_shift / 2), 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_angles same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_all_angles=[-" + string1 + ",-" + string2 + ",-" + string3 + "]")
+            string = IJ.d2s(Angle_, 0)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle 0] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles axis_all_timepoints_all_channels_illumination_0_angle_0=x-axis rotation_all_timepoints_all_channels_illumination_0_angle_0=" + string)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] processing_angle=[angle " + Angle + "] transformation=Rigid apply=[Current view transformations (appends to current transforms)] define=[Rotation around axis] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles axis_all_timepoints_all_channels_illumination_0_angle_" + Angle + "=x-axis rotation_all_timepoints_all_channels_illumination_0_angle_" + Angle + "=-" + string)
+            IJ.run("Apply Transformations", "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Translation apply=[Current view transformations (appends to current transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_angles same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_all_angles=[" + string1 + "," + string2 + "," + string3 + "]")
         else:
             print('incorrect format')
 
@@ -901,6 +872,22 @@ class mvrgetvolumes(object):
                 out.append(str(i))
         return out
 
+    def _normalize_tile_choice_label(self, raw_label, tile_id):
+        if raw_label is None:
+            return "tile " + str(tile_id)
+
+        label = str(raw_label).strip()
+        if label == "":
+            return "tile " + str(tile_id)
+
+        low = label.lower()
+        if low.startswith("tile "):
+            return label
+
+        # XML often stores tile names as "2", "3", ...
+        # but the Fiji chooser expects "tile 2", "tile 3", ...
+        return "tile " + label
+
     def getXMLinfo(self):
         file = os.path.join(self.datapath, self.dataset)
         root = ET.parse(file).getroot()
@@ -911,7 +898,6 @@ class mvrgetvolumes(object):
         tile_name_map = {}
         timepoint_choice_map = {}
 
-        # timepoints
         tp_node = root.find('./SequenceDescription/Timepoints')
         if tp_node is None:
             raise ValueError("Could not find Timepoints in XML: " + file)
@@ -923,7 +909,6 @@ class mvrgetvolumes(object):
         times_list = self.csvtoarray(integerpattern_node.text, 'int')
         times_list.sort()
 
-        # tile ids actually used in setups
         for node in root.findall('./SequenceDescription/ViewSetups/ViewSetup/attributes'):
             elem = node.find('tile')
             if elem is not None and elem.text is not None:
@@ -931,13 +916,11 @@ class mvrgetvolumes(object):
 
         tile_ids = sorted(list(set(tile_ids)))
 
-        # angle names
         for node in root.findall('./SequenceDescription/ViewSetups/Attributes/Angle'):
             name_node = node.find('name')
             if name_node is not None and name_node.text is not None:
                 angle_list.append(name_node.text)
 
-        # tile id -> displayed tile choice label
         for node in root.findall('./SequenceDescription/ViewSetups/Attributes/Tile'):
             id_node = node.find('id')
             name_node = node.find('name')
@@ -945,11 +928,10 @@ class mvrgetvolumes(object):
                 if id_node.text is not None and name_node.text is not None:
                     try:
                         tile_id = int(id_node.text)
-                        tile_name_map[tile_id] = name_node.text
+                        tile_name_map[tile_id] = self._normalize_tile_choice_label(name_node.text, tile_id)
                     except:
                         pass
 
-        # default fallback for timepoint choice labels
         for tp in times_list:
             timepoint_choice_map[tp] = "Timepoint " + str(tp)
 
@@ -1070,13 +1052,15 @@ class mvrgetvolumes(object):
         IJ.log("getSingleView start: dataset=" + self.dataset + ", view=" + str(view) + ", binning=" + str(self.binning))
 
         if len(tiles) == 1:
+            tile_label = self.getTileChoiceLabel(tiles[0])
             IJ.run(
                 "Fuse",
                 "select=[" + datasepath + "] "
                 "process_angle=[Single angle (Select from List)] "
                 "process_channel=[All channels] process_illumination=[All illuminations] "
-                "process_tile=[All tiles] process_timepoint=[All Timepoints] "
+                "process_tile=[Single tile (Select from List)] process_timepoint=[All Timepoints] "
                 "processing_angle=[angle " + self.xml_angles[int(view)] + "] "
+                "processing_tile=[" + tile_label + "] "
                 "bounding_box=[" + self.BB + "] "
                 "downsampling=" + self.binning + " "
                 "pixel_type=[16-bit unsigned integer] "
@@ -1281,8 +1265,8 @@ class mvrgetvolumes(object):
 
         print 'times and tiles valid starting processing.....'
         return [True, sorted(times_chosen), sorted(tiles_chosen)]
-   
-   
+
+
 class defineboundingbox(object):
 
     def __init__(self, **kwargs):
@@ -1297,11 +1281,16 @@ class defineboundingbox(object):
         file = os.path.join(datapath, self.dataset)
         root = ET.parse(file).getroot()
 
-        for boundingbox in root.find('./BoundingBoxes'):
+        bb_root = root.find('./BoundingBoxes')
+        if bb_root is None:
+            return None
+
+        for boundingbox in bb_root:
             if boundingbox.get('name') == 'My Bounding Box':
                 min_ = boundingbox.find('min').text.split(' ')
                 max_ = boundingbox.find('max').text.split(' ')
                 return [min_, max_]
+        return None
 
     def defineBoundingBox(self, datapath):
         datasepath = os.path.join(datapath, self.dataset)
@@ -1442,7 +1431,7 @@ class defineboundingbox(object):
         writedopmxml(settingsfile, settings)
 
         BB = [[bb_x[0], bb_y[0], bb_z[0]], [bb_x[1], bb_y[1], bb_z[1]]]
-    return BB
+        return BB
 
 
 if __name__ in ['__builtin__', '__main__']:

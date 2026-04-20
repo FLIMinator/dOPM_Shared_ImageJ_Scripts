@@ -6,10 +6,8 @@ from os.path import isfile
 from sys import path
 from java.lang.System import getProperty
 
-# code_path = 'C:/Users/CRICKOPMuser/Documents/GitHub/dOPM_Shared_ImageJ_Scripts/testing'
 code_path = getProperty('fiji.dir') + '/plugins/Scripts/dOPM'
 
-# Delete the compiled class file otherwise we can not dynamically update the imported module
 ScriptPath = code_path + "/dopmmvr$py.class"
 path.append(code_path)
 
@@ -93,7 +91,6 @@ def run_subset_dialog(data, mode, view_=None):
         gui.showDialog()
 
         if gui.wasOKed():
-            # Important: consume the choice fields before the text fields
             gui.getNextChoice()
             tiles_chosen = gui.getNextString()
             gui.getNextChoice()
@@ -185,7 +182,7 @@ def main():
 
         mvrgetvolumes.BB = BB
 
-        if inChoice == choices[0]:  # fused
+        if inChoice == choices[0]:
             gui = GenericDialogPlus(inChoice)
             gui.addFileField("Select xml dataset", prefs.get(None, "xmlpath_", ""))
             gui.addDirectoryField("Select save path", prefs.get(None, "savepath_", ""))
@@ -204,7 +201,7 @@ def main():
                 data = build_mvrgetvolumes(xmlpath_, savepath_, binning_)
                 run_subset_dialog(data, mode="fused")
 
-        elif inChoice == choices[1]:  # single view
+        elif inChoice == choices[1]:
             gui = GenericDialogPlus(inChoice)
             gui.addFileField("Select xml dataset", prefs.get(None, "xmlpath_", ""))
             gui.addDirectoryField("Select save path", prefs.get(None, "savepath_", ""))
@@ -226,7 +223,7 @@ def main():
                 data = build_mvrgetvolumes(xmlpath_, savepath_, binning_)
                 run_subset_dialog(data, mode="single", view_=view_)
 
-        elif inChoice == choices[2]:  # both single views
+        elif inChoice == choices[2]:
             gui = GenericDialogPlus(inChoice)
             gui.addFileField("Select xml dataset", prefs.get(None, "xmlpath_", ""))
             gui.addDirectoryField("Select save path", prefs.get(None, "savepath_", ""))
@@ -245,7 +242,7 @@ def main():
                 data = build_mvrgetvolumes(xmlpath_, savepath_, binning_)
                 run_subset_dialog(data, mode="both")
 
-        elif inChoice == choices[3]:  # batch fused
+        elif inChoice == choices[3]:
             gui = GenericDialogPlus(inChoice)
             gui.addDirectoryField("Select folder containing dataset xmls", prefs.get(None, "xmlfolder_", ""))
             gui.addDirectoryField("Select save path", prefs.get(None, "savepath_", ""))
@@ -263,7 +260,7 @@ def main():
 
                 run_batch_for_all_xmls(xmlfolder_, savepath_, binning_, mode="fused")
 
-        elif inChoice == choices[4]:  # batch single view
+        elif inChoice == choices[4]:
             gui = GenericDialogPlus(inChoice)
             gui.addDirectoryField("Select folder containing dataset xmls", prefs.get(None, "xmlfolder_", ""))
             gui.addDirectoryField("Select save path", prefs.get(None, "savepath_", ""))
@@ -284,7 +281,7 @@ def main():
 
                 run_batch_for_all_xmls(xmlfolder_, savepath_, binning_, mode="single", view_=view_)
 
-        elif inChoice == choices[5]:  # batch both single views
+        elif inChoice == choices[5]:
             gui = GenericDialogPlus(inChoice)
             gui.addDirectoryField("Select folder containing dataset xmls", prefs.get(None, "xmlfolder_", ""))
             gui.addDirectoryField("Select save path", prefs.get(None, "savepath_", ""))

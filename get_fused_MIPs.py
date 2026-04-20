@@ -1,111 +1,183 @@
 #@ File(label='Choose a directory for the folder of tiff stacks', style='directory') datapath
 datapath = datapath.getAbsolutePath()
 
-# in princple most of the above parameters can be automatically derived from the folder of tiffs 
-# also the script parameter method could be replaced with hardcoded variables at top of script which would be good for record keeping and rerunning stuff
-
-######### IMAGEJ SCRIPT PARAMETERS AUTOMATICALLY PROMPTS USER WITH A GUI FOR ENTERING THE VALUES ######
-######### CODE EXPECTS 2 DOPM VIEWS SO WILL NOT WORK PROPERLY IF OTHERWISE ######
-
-'''
-A batch opener using os.walk()
-This code is part of the Jython tutorial at the ImageJ wiki.
-http://imagej.net/Jython_Scripting#A_batch_opener_using_os.walk.28.29
-'''
-
-# We do only include the module os,
-# as we can use os.path.walk()
-# to access functions of the submodule.
-
-######### FUNCTION DEFINITIONS GO AT TOP IN THIS JYTHON CODE ######
-from ij.plugin import ZProjector
-from ij import IJ, ImagePlus, ImageStack
+from ij import IJ
 from ij.io import FileSaver
-from net.haesleinhuepf.clij2 import CLIJ2;
+from net.haesleinhuepf.clij2 import CLIJ2
+from fiji.util.gui import GenericDialogPlus
 import os
-from os import listdir
-from os.path import isfile, join
 import glob
+
 
 def createFolder(directory):
     try:
         if not os.path.exists(directory):
             os.makedirs(directory)
     except OSError:
-        print ('Error: Creating directory. ' +  directory)
-        
+        print('Error: Creating directory. ' + directory)
+
+
 def getStackList(stackdir):
-    #print stackdir
-    files = glob.glob(stackdir+'/'+"*.tif")
-    #print(files) 
-    tiff_set=[]
+    files = glob.glob(os.path.join(stackdir, "*.tif"))
+    files += glob.glob(os.path.join(stackdir, "*.tiff"))
+
+    tiff_set = []
     for a_string in files:
-        new_string = a_string.replace(os.sep, '/')
-        tiff_set.append(new_string)
-    #print(tiff_set)
+        norm = os.path.normpath(a_string)
+        parts = norm.split(os.sep)
+        if 'MIP' in parts:
+            continue
+        tiff_set.append(norm.replace(os.sep, '/'))
+
+    tiff_set.sort()
     return tiff_set
+
 
 def getPathParts(path):
     path = os.path.normpath(path)
-    out=path.split(os.sep)
     drive, path_and_file = os.path.splitdrive(path)
     path, file = os.path.split(path_and_file)
-    #print drive, path, file
     return [drive, path, file]
 
-def getMIPsonFolder(datapath):
 
+def getMIPsonFolder(datapath):
     MIPfolder = 'MIP'
-    pathname = os.path.join(datapath,MIPfolder)
+    pathname = os.path.join(datapath, MIPfolder)
     createFolder(pathname)
-    
+
     stackdir = datapath.replace(os.sep, '/')
     tiff_set = getStackList(stackdir)
-    
+
+    if len(tiff_set) == 0:
+        IJ.log("No TIFF stacks found in: " + stackdir)
+        return
+
+    IJ.log("Processing folder: " + datapath)
+
     for tiff_stack in tiff_set:
-
-        #print tiff_stack
-        clij2 = CLIJ2.getInstance();
+        clij2 = CLIJ2.getInstance()
         imp = IJ.openImage(tiff_stack)
-        dims = imp.getDimensions() # x,y,c,z,t
-        imageInput = clij2.push(imp);
-        #imageOutput = clij2.create([imageInput.getWidth(), imageInput.getHeight()], imageInput.getNativeType());
-        imageOutput1 = clij2.create([dims[0], dims[1]], imageInput.getNativeType());
-        clij2.maximumZProjection(imageInput, imageOutput1);
-        #clij2.show(imageOutput, "output");
-        outputZ=clij2.pull(imageOutput1);
-        imageOutput2 = clij2.create([dims[3], dims[1]], imageInput.getNativeType());
-        clij2.maximumXProjection(imageInput, imageOutput2);
-        #clij2.show(imageOutput, "output");
-        outputX=clij2.pull(imageOutput2);
-        imageOutput3 = clij2.create([dims[0], dims[3]], imageInput.getNativeType());
-        clij2.maximumYProjection(imageInput, imageOutput3);
-        #clij2.show(imageOutput, "output");
-        outputY=clij2.pull(imageOutput3);
-        #print filename + 'XY.tif'
 
-        imageOutput4 = clij2.create([dims[0]+dims[3], dims[1]], imageInput.getNativeType());
-        clij2.combineHorizontally(imageOutput1,imageOutput2,imageOutput4);
-        imageOutput5 = clij2.create([dims[3], dims[1]], imageInput.getNativeType());
-        imageOutput6 = clij2.create([dims[0]+dims[3], dims[1]], imageInput.getNativeType());
-        clij2.combineHorizontally(imageOutput3,imageOutput5,imageOutput6);       
-        imageOutput7 = clij2.create([dims[0]+dims[3], dims[1]+dims[1]], imageInput.getNativeType());        
-        clij2.combineVertically(imageOutput4,imageOutput6,imageOutput7);
-        
- 
-        imageOutput7=clij2.pull(imageOutput7);
-        
+        if imp is None:
+            IJ.log("Could not open: " + tiff_stack)
+            continue
+
+        dims = imp.getDimensions()  # x,y,c,z,t
+        imageInput = clij2.push(imp)
+
+        imageOutput1 = clij2.create([dims[0], dims[1]], imageInput.getNativeType())
+        clij2.maximumZProjection(imageInput, imageOutput1)
+
+        imageOutput2 = clij2.create([dims[3], dims[1]], imageInput.getNativeType())
+        clij2.maximumXProjection(imageInput, imageOutput2)
+
+        imageOutput3 = clij2.create([dims[0], dims[3]], imageInput.getNativeType())
+        clij2.maximumYProjection(imageInput, imageOutput3)
+
+        imageOutput4 = clij2.create([dims[0] + dims[3], dims[1]], imageInput.getNativeType())
+        clij2.combineHorizontally(imageOutput1, imageOutput2, imageOutput4)
+
+        imageOutput5 = clij2.create([dims[3], dims[1]], imageInput.getNativeType())
+        imageOutput6 = clij2.create([dims[0] + dims[3], dims[1]], imageInput.getNativeType())
+        clij2.combineHorizontally(imageOutput3, imageOutput5, imageOutput6)
+
+        imageOutput7 = clij2.create([dims[0] + dims[3], dims[1] + dims[1]], imageInput.getNativeType())
+        clij2.combineVertically(imageOutput4, imageOutput6, imageOutput7)
+
+        final_imp = clij2.pull(imageOutput7)
+
         pathparts = getPathParts(tiff_stack)
-        fname = pathparts[2].split('.',1)
-        filename = os.path.join(pathname,fname[0])
-        
-        FileSaver(imageOutput7).saveAsTiff(filename + '.tif')
-        
-        clij2.clear()
-        
-        #print filename
-                    
-if __name__ in ['__builtin__','__main__']:
-    # Run the code mofo
-    getMIPsonFolder(datapath)
+        fname = pathparts[2].split('.', 1)
+        filename = os.path.join(pathname, fname[0])
 
+        FileSaver(final_imp).saveAsTiff(filename + '.tif')
+
+        imp.close()
+        final_imp.close()
+        clij2.clear()
+
+
+def find_dataset_output_folders(root_folder, volume_type, binning):
+    """
+    Looks for:
+        dataset_*/dataset_*_<suffix>
+
+    where suffix is one of:
+        fused_binning_X
+        view_1_binning_X
+        view_2_binning_X
+    """
+    matches = []
+
+    if volume_type == 'fused':
+        suffix = '_fused_binning_' + str(binning)
+    elif volume_type == 'view_1':
+        suffix = '_view_1_binning_' + str(binning)
+    elif volume_type == 'view_2':
+        suffix = '_view_2_binning_' + str(binning)
+    else:
+        raise ValueError("Unknown volume_type: " + str(volume_type))
+
+    for each in os.listdir(root_folder):
+        dataset_dir = os.path.join(root_folder, each)
+
+        if not os.path.isdir(dataset_dir):
+            continue
+
+        if not each.startswith('dataset'):
+            continue
+
+        candidate = os.path.join(dataset_dir, each + suffix)
+        if os.path.isdir(candidate):
+            matches.append(candidate)
+
+    matches.sort()
+    return matches
+
+
+def processRootForBinning(root_folder, volume_type, binning):
+    folders = find_dataset_output_folders(root_folder, volume_type, binning)
+
+    if len(folders) == 0:
+        IJ.log("No matching dataset output folders found.")
+        IJ.log("Root: " + root_folder)
+        IJ.log("Type: " + volume_type)
+        IJ.log("Binning: " + str(binning))
+        return
+
+    IJ.log("Found matching folders:")
+    for folder in folders:
+        IJ.log(folder)
+
+    for folder in folders:
+        getMIPsonFolder(folder)
+
+
+def chooseModeAndRun(default_root):
+    mode_choices = ["single folder", "search root for dataset folders"]
+    volume_choices = ["fused", "view_1", "view_2"]
+    binning_choices = ["1", "2", "4", "8", "16"]
+
+    gui = GenericDialogPlus("Generate MIPs from deskewed dOPM TIFF stacks")
+    gui.addChoice("Mode", mode_choices, mode_choices[0])
+    gui.addDirectoryField("Folder", default_root)
+    gui.addChoice("Volume type", volume_choices, volume_choices[0])
+    gui.addChoice("Binning", binning_choices, binning_choices[0])
+    gui.showDialog()
+
+    if not gui.wasOKed():
+        return
+
+    mode = gui.getNextChoice()
+    folder = gui.getNextString()
+    volume_type = gui.getNextChoice()
+    binning = gui.getNextChoice()
+
+    if mode == mode_choices[0]:
+        getMIPsonFolder(folder)
+    else:
+        processRootForBinning(folder, volume_type, binning)
+
+
+if __name__ in ['__builtin__', '__main__']:
+    chooseModeAndRun(datapath)

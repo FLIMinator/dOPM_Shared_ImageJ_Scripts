@@ -845,17 +845,10 @@ class mvrgetvolumes(object):
         self.xml_tiles = info[0]
         self.xml_times = info[1]
         self.xml_angles = info[2]
+        self.xml_tile_name_map = info[3]
+        self.xml_timepoint_choice_map = info[4]
 
     def _resolve_dataset_name(self, dataset):
-        """
-        Resolve which dataset XML to use.
-
-        Priority:
-        1. explicit dataset argument
-        2. dataset.xml if it exists
-        3. exactly one dataset_*.xml file
-        4. otherwise raise a clear error
-        """
         if dataset is not None:
             dataset_path = os.path.join(self.datapath, dataset)
             if not os.path.exists(dataset_path):
@@ -912,29 +905,81 @@ class mvrgetvolumes(object):
         file = os.path.join(self.datapath, self.dataset)
         root = ET.parse(file).getroot()
 
-        tile_list = []
+        tile_ids = []
         times_list = []
         angle_list = []
+        tile_name_map = {}
+        timepoint_choice_map = {}
 
-        for node in root.findall('./SequenceDescription/Timepoints'):
-            times_list.append(node.find('integerpattern').text)
-        times_list = self.csvtoarray(times_list[0], 'int')
+        # timepoints
+        tp_node = root.find('./SequenceDescription/Timepoints')
+        if tp_node is None:
+            raise ValueError("Could not find Timepoints in XML: " + file)
+
+        integerpattern_node = tp_node.find('integerpattern')
+        if integerpattern_node is None or integerpattern_node.text is None:
+            raise ValueError("Could not find timepoint integerpattern in XML: " + file)
+
+        times_list = self.csvtoarray(integerpattern_node.text, 'int')
         times_list.sort()
 
+        # tile ids actually used in setups
         for node in root.findall('./SequenceDescription/ViewSetups/ViewSetup/attributes'):
-            elem = node.find('tile').text
-            tile_list.append(elem)
+            elem = node.find('tile')
+            if elem is not None and elem.text is not None:
+                tile_ids.append(int(elem.text))
 
-        for node in root.findall('./SequenceDescription/ViewSetups/Attributes/Angle/name'):
-            angle_list.append(node.text)
+        tile_ids = sorted(list(set(tile_ids)))
 
-        for i in range(len(tile_list)):
-            tile_list[i] = int(tile_list[i])
+        # angle names
+        for node in root.findall('./SequenceDescription/ViewSetups/Attributes/Angle'):
+            name_node = node.find('name')
+            if name_node is not None and name_node.text is not None:
+                angle_list.append(name_node.text)
 
-        tile_list = list(set(tile_list))
-        tile_list.sort()
+        # tile id -> displayed tile choice label
+        for node in root.findall('./SequenceDescription/ViewSetups/Attributes/Tile'):
+            id_node = node.find('id')
+            name_node = node.find('name')
+            if id_node is not None and name_node is not None:
+                if id_node.text is not None and name_node.text is not None:
+                    try:
+                        tile_id = int(id_node.text)
+                        tile_name_map[tile_id] = name_node.text
+                    except:
+                        pass
 
-        return [tile_list, times_list, angle_list]
+        # default fallback for timepoint choice labels
+        for tp in times_list:
+            timepoint_choice_map[tp] = "Timepoint " + str(tp)
+
+        IJ.log("Dataset XML: " + self.dataset)
+        IJ.log("Tile ids found: " + str(tile_ids))
+        IJ.log("Tile name map: " + str(tile_name_map))
+        IJ.log("Timepoints found: " + str(times_list))
+        IJ.log("Angles found: " + str(angle_list))
+
+        return [tile_ids, times_list, angle_list, tile_name_map, timepoint_choice_map]
+
+    def getTileChoiceLabel(self, tile_id):
+        if tile_id in self.xml_tile_name_map:
+            return self.xml_tile_name_map[tile_id]
+        return "tile " + str(tile_id)
+
+    def getTimepointChoiceLabel(self, timepoint_id):
+        if timepoint_id in self.xml_timepoint_choice_map:
+            return self.xml_timepoint_choice_map[timepoint_id]
+        return "Timepoint " + str(timepoint_id)
+
+    def getDefaultTileId(self):
+        if len(self.xml_tiles) == 0:
+            raise ValueError("No tiles found in dataset XML: " + self.dataset)
+        return self.xml_tiles[0]
+
+    def getDefaultTimepointId(self):
+        if len(self.xml_times) == 0:
+            raise ValueError("No timepoints found in dataset XML: " + self.dataset)
+        return self.xml_times[0]
 
     def getFusedVolumes(self):
         datasepath = os.path.join(self.datapath, self.dataset)
@@ -965,6 +1010,8 @@ class mvrgetvolumes(object):
         else:
             if len(times) == 1:
                 for tile in tiles:
+                    tile_label = self.getTileChoiceLabel(tile)
+                    IJ.log("Fusing dataset=" + self.dataset + ", tile=" + str(tile) + ", tile_label=" + tile_label)
                     IJ.run(
                         "Fuse",
                         "select=[" + datasepath + "] "
@@ -972,7 +1019,7 @@ class mvrgetvolumes(object):
                         "process_illumination=[All illuminations] "
                         "process_tile=[Single tile (Select from List)] "
                         "process_timepoint=[All Timepoints] "
-                        "processing_tile=[tile " + str(tile) + "] "
+                        "processing_tile=[" + tile_label + "] "
                         "bounding_box=[" + self.BB + "] "
                         "downsampling=" + self.binning + " "
                         "pixel_type=[16-bit unsigned integer] "
@@ -985,7 +1032,10 @@ class mvrgetvolumes(object):
                     )
             else:
                 for time in times:
+                    tp_label = self.getTimepointChoiceLabel(time)
                     for tile in tiles:
+                        tile_label = self.getTileChoiceLabel(tile)
+                        IJ.log("Fusing dataset=" + self.dataset + ", tile=" + str(tile) + ", tile_label=" + tile_label + ", time=" + str(time))
                         IJ.run(
                             "Fuse",
                             "select=[" + datasepath + "] "
@@ -993,8 +1043,8 @@ class mvrgetvolumes(object):
                             "process_illumination=[All illuminations] "
                             "process_tile=[Single tile (Select from List)] "
                             "process_timepoint=[Single Timepoint (Select from List)] "
-                            "processing_tile=[tile " + str(tile) + "] "
-                            "processing_timepoint=[Timepoint " + str(time) + "] "
+                            "processing_tile=[" + tile_label + "] "
+                            "processing_timepoint=[" + tp_label + "] "
                             "bounding_box=[" + self.BB + "] "
                             "downsampling=" + self.binning + " "
                             "pixel_type=[16-bit unsigned integer] "
@@ -1017,6 +1067,8 @@ class mvrgetvolumes(object):
         tiles = self.xml_tiles
         times = self.xml_times
 
+        IJ.log("getSingleView start: dataset=" + self.dataset + ", view=" + str(view) + ", binning=" + str(self.binning))
+
         if len(tiles) == 1:
             IJ.run(
                 "Fuse",
@@ -1038,6 +1090,8 @@ class mvrgetvolumes(object):
         else:
             if len(times) == 1:
                 for tile in tiles:
+                    tile_label = self.getTileChoiceLabel(tile)
+                    IJ.log("Single-view fuse dataset=" + self.dataset + ", view=" + str(view) + ", tile=" + str(tile) + ", tile_label=" + tile_label)
                     IJ.run(
                         "Fuse",
                         "select=[" + datasepath + "] "
@@ -1046,7 +1100,7 @@ class mvrgetvolumes(object):
                         "process_tile=[Single tile (Select from List)] "
                         "process_timepoint=[All Timepoints] "
                         "processing_angle=[angle " + self.xml_angles[int(view)] + "] "
-                        "processing_tile=[tile " + str(tile) + "] "
+                        "processing_tile=[" + tile_label + "] "
                         "bounding_box=[" + self.BB + "] "
                         "downsampling=" + self.binning + " "
                         "pixel_type=[16-bit unsigned integer] "
@@ -1059,7 +1113,10 @@ class mvrgetvolumes(object):
                     )
             else:
                 for time in times:
+                    tp_label = self.getTimepointChoiceLabel(time)
                     for tile in tiles:
+                        tile_label = self.getTileChoiceLabel(tile)
+                        IJ.log("Single-view fuse dataset=" + self.dataset + ", view=" + str(view) + ", tile=" + str(tile) + ", tile_label=" + tile_label + ", time=" + str(time))
                         IJ.run(
                             "Fuse",
                             "select=[" + datasepath + "] "
@@ -1068,8 +1125,8 @@ class mvrgetvolumes(object):
                             "process_tile=[Single tile (Select from List)] "
                             "process_timepoint=[Single Timepoint (Select from List)] "
                             "processing_angle=[angle " + self.xml_angles[int(view)] + "] "
-                            "processing_tile=[tile " + str(tile) + "] "
-                            "processing_timepoint=[Timepoint " + str(time) + "] "
+                            "processing_tile=[" + tile_label + "] "
+                            "processing_timepoint=[" + tp_label + "] "
                             "bounding_box=[" + self.BB + "] "
                             "downsampling=" + self.binning + " "
                             "pixel_type=[16-bit unsigned integer] "
@@ -1090,7 +1147,10 @@ class mvrgetvolumes(object):
         self.createFolder(fusedpath)
 
         for time in times:
+            tp_label = self.getTimepointChoiceLabel(time)
             for tile in tiles:
+                tile_label = self.getTileChoiceLabel(tile)
+                IJ.log("Subset single-view fuse dataset=" + self.dataset + ", view=" + str(view) + ", tile=" + str(tile) + ", tile_label=" + tile_label + ", time=" + str(time))
                 IJ.run(
                     "Fuse",
                     "select=[" + datasepath + "] "
@@ -1099,8 +1159,8 @@ class mvrgetvolumes(object):
                     "process_tile=[Single tile (Select from List)] "
                     "process_timepoint=[Single Timepoint (Select from List)] "
                     "processing_angle=[angle " + self.xml_angles[int(view)] + "] "
-                    "processing_tile=[tile " + str(tile) + "] "
-                    "processing_timepoint=[Timepoint " + str(time) + "] "
+                    "processing_tile=[" + tile_label + "] "
+                    "processing_timepoint=[" + tp_label + "] "
                     "bounding_box=[" + self.BB + "] "
                     "downsampling=" + self.binning + " "
                     "pixel_type=[16-bit unsigned integer] "
@@ -1121,7 +1181,10 @@ class mvrgetvolumes(object):
         self.createFolder(fusedpath)
 
         for time in times:
+            tp_label = self.getTimepointChoiceLabel(time)
             for tile in tiles:
+                tile_label = self.getTileChoiceLabel(tile)
+                IJ.log("Subset fused dataset=" + self.dataset + ", tile=" + str(tile) + ", tile_label=" + tile_label + ", time=" + str(time))
                 IJ.run(
                     "Fuse",
                     "select=[" + datasepath + "] "
@@ -1129,8 +1192,8 @@ class mvrgetvolumes(object):
                     "process_illumination=[All illuminations] "
                     "process_tile=[Single tile (Select from List)] "
                     "process_timepoint=[Single Timepoint (Select from List)] "
-                    "processing_tile=[tile " + str(tile) + "] "
-                    "processing_timepoint=[Timepoint " + str(time) + "] "
+                    "processing_tile=[" + tile_label + "] "
+                    "processing_timepoint=[" + tp_label + "] "
                     "bounding_box=[" + self.BB + "] "
                     "downsampling=" + self.binning + " "
                     "pixel_type=[16-bit unsigned integer] "
@@ -1297,6 +1360,20 @@ class defineboundingbox(object):
         datapath_ = os.path.join(datapath, self.dataset)
         IJ.log(str(datapath_))
 
+        helper = mvrgetvolumes(
+            datapath=datapath,
+            savepath=datapath,
+            binning="1",
+            dataset=self.dataset
+        )
+
+        default_tile = helper.getDefaultTileId()
+        default_timepoint = helper.getDefaultTimepointId()
+        tile_label = helper.getTileChoiceLabel(default_tile)
+        tp_label = helper.getTimepointChoiceLabel(default_timepoint)
+
+        IJ.log("OptimalBoundingBox using tile_label=" + tile_label + ", tp_label=" + tp_label)
+
         IJ.run(
             "Fuse",
             "select=[" + datapath_ + "] "
@@ -1306,8 +1383,8 @@ class defineboundingbox(object):
             "process_tile=[Single tile (Select from List)] "
             "process_timepoint=[Single Timepoint (Select from List)] "
             "processing_channel=[channel 0] "
-            "processing_tile=[tile 0] "
-            "processing_timepoint=[Timepoint 0] "
+            "processing_tile=[" + tile_label + "] "
+            "processing_timepoint=[" + tp_label + "] "
             "bounding_box=[All Views] downsampling=1 "
             "pixel_type=[16-bit unsigned integer] "
             "interpolation=[Linear Interpolation] image=[Precompute Image] "
@@ -1365,7 +1442,7 @@ class defineboundingbox(object):
         writedopmxml(settingsfile, settings)
 
         BB = [[bb_x[0], bb_y[0], bb_z[0]], [bb_x[1], bb_y[1], bb_z[1]]]
-        return BB
+    return BB
 
 
 if __name__ in ['__builtin__', '__main__']:

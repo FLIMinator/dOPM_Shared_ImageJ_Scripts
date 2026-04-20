@@ -80,7 +80,7 @@ def run_subset_dialog(data, mode, view_=None):
 
     if do_subset:
         gui = GenericDialogPlus("processing a subset")
-        [tiles, times, angles] = data.getXMLinfo()
+        [tiles, times, angles, tile_name_map, timepoint_choice_map] = data.getXMLinfo()
         tiles = [str(x) for x in tiles]
         times = [str(x) for x in times]
 

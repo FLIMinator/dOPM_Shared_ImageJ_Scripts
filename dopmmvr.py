@@ -497,6 +497,35 @@ class mvrsetup(object):
                 out.append(str(i))
         return out
 
+    def _format_affine_text_for_ij(self, affine_text):
+        """
+        Convert a BigStitcher XML affine string into the comma-separated form
+        expected by the ImageJ/Fiji macro argument parser.
+
+        BigStitcher XML usually stores affine values separated by whitespace:
+            1.0 0.0 0.0 ...
+
+        The Apply Transformations command is safer when given:
+            1.0,0.0,0.0,...
+
+        Without this conversion, the macro parser can collapse whitespace and
+        BigStitcher sees one long token such as 1.00.00.0..., causing:
+            Cannot parse ..., has 1 numbers, but should be 12
+        """
+        if affine_text is None:
+            raise ValueError("Affine text is None")
+
+        parts = re.split(r'[\s,]+', affine_text.strip())
+        parts = [p for p in parts if p != '']
+
+        if len(parts) != 12:
+            raise ValueError(
+                "Expected 12 affine numbers, found " + str(len(parts)) +
+                " in affine text: " + str(affine_text)
+            )
+
+        return ','.join(parts)
+
     def _read_first_calibration_affine_from_xml(self):
         """
         Read the initial voxel calibration affine directly from the just-created
@@ -526,7 +555,7 @@ class mvrsetup(object):
                     elem = affine_node.text
 
             if elem is not None:
-                return elem
+                return self._format_affine_text_for_ij(elem)
 
         raise ValueError("No calibration affine found in dataset XML: " + file)
 

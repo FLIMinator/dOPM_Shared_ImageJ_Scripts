@@ -30,7 +30,7 @@ The current design treats the BigStitcher dataset XML as the source of truth for
 
 Use the tested Fiji distribution:
 
-<https://imperialcollegelondon.app.box.com/s/2pc9iiusvuh36uc8arceoutrwxi193ul/file/1364388978888>
+<[https://imperialcollegelondon.app.box.com/s/2pc9iiusvuh36uc8arceoutrwxi193ul/file/1364388978888](https://imperialcollegelondon.box.com/s/g2gcl5hudoosoxwfb4xcan5javiytj99)>
 
 Other Fiji versions may work, but compatibility depends on the installed Multiview Reconstruction / BigStitcher and CLIJ versions.
 

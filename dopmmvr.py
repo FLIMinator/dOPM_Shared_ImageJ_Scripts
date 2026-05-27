@@ -92,7 +92,8 @@ class mvrsetup(object):
             "well_tail",
             "dataset_basename",
             "bead_reference_timepoint",
-            "registration_source_csv"
+            "registration_source_csv",
+            "registration_source_xml"
         ]
         for key in valid_keys:
             setattr(self, key, kwargs.get(key))
@@ -103,6 +104,7 @@ class mvrsetup(object):
         self.well_tail = getattr(self, 'well_tail', None)
         self.bead_reference_timepoint = self.bead_reference_timepoint
         self.registration_source_csv = getattr(self, 'registration_source_csv', None)
+        self.registration_source_xml = getattr(self, 'registration_source_xml', None)
 
         if self.well_tail:
             self.filepattern = self.filepattern_ + self.well_tail + self.extension
@@ -127,6 +129,11 @@ class mvrsetup(object):
             self.regfile = os.path.normpath(self.registration_source_csv)
         else:
             self.regfile = os.path.normpath(os.path.join(self.regpath, self.registration_csv))
+
+        if self.registration_source_xml:
+            self.regxml = os.path.normpath(self.registration_source_xml)
+        else:
+            self.regxml = None
 
         self.dims = self.GetImageInfo()
 
@@ -643,18 +650,20 @@ class mvrsetup(object):
         else:
             print 'Unexpected calibration application case'
 
-    def ApplyBeadRegCSV(self):
-        channels = self.dims[4]
-        times = self.dims[3]
-        dataset = os.path.join(self.datapath, self.dataset)
-
-        if not os.path.exists(self.regfile):
-            raise IOError("Bead registration file not found: " + self.regfile)
+    def _read_registration_csv_first_block(self, csv_path):
+        """
+        Backward-compatible reader for the old *_registrations.csv format.
+        Returns only the first block, matching the original ApplyBeadRegCSV()
+        behaviour.
+        """
+        if not os.path.exists(csv_path):
+            raise IOError("Bead registration file not found: " + csv_path)
 
         registration_list = []
-        Reader = csv.reader(open(self.regfile), delimiter=' ', quotechar='|')
+        Reader = csv.reader(open(csv_path), delimiter=' ', quotechar='|')
         for registration in Reader:
-            registration_list.append(registration[0])
+            if len(registration) > 0:
+                registration_list.append(registration[0])
 
         filtered = []
         for row in registration_list:
@@ -662,7 +671,53 @@ class mvrsetup(object):
             if row.startswith('NaN'):
                 break
 
-        registration_list = filtered
+        return filtered
+
+    def _read_registration_xml_first_block(self, xml_path):
+        """
+        Read the live/current bead registration directly from a BigStitcher XML.
+
+        This intentionally mirrors getAffineTransformations() + the first-block
+        filtering previously used by ApplyBeadRegCSV(), but without writing or
+        reading an intermediate CSV. Therefore, if you reopen the bead XML/HDF5
+        in Fiji, optimise the registration, and save the XML, this function will
+        use the updated transforms.
+        """
+        if not os.path.exists(xml_path):
+            raise IOError("Bead registration XML not found: " + xml_path)
+
+        root = ET.parse(xml_path).getroot()
+        spacer = 'NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN'
+        registration_list = []
+
+        for node in root.findall('./ViewRegistrations/ViewRegistration'):
+            node_lines = []
+            for transform_node in node:
+                affine_node = transform_node.find('affine')
+                if affine_node is not None and affine_node.text is not None:
+                    node_lines.append(affine_node.text)
+
+            # Preserve the old CSV extraction semantics exactly:
+            # keep all transforms except the final one, then stop after the
+            # first ViewRegistration block.
+            if len(node_lines) > 1:
+                node_lines = node_lines[:-1]
+
+            for elem in node_lines:
+                registration_list.append(elem)
+
+            registration_list.append(spacer)
+            break
+
+        if len(registration_list) == 0:
+            raise ValueError("No affine transforms found in bead registration XML: " + xml_path)
+
+        return registration_list
+
+    def _apply_bead_registration_list(self, registration_list):
+        channels = self.dims[4]
+        times = self.dims[3]
+        dataset = os.path.join(self.datapath, self.dataset)
 
         idx = 0
         for registration in registration_list:
@@ -711,6 +766,178 @@ class mvrsetup(object):
                     "same_transformation_for_all_tiles "
                     "all_timepoints_channel_" + channel + "_illumination_0_angle_" + angle_name + "=[" + registration + "]"
                 )
+
+    def ApplyBeadRegCSV(self):
+        registration_list = self._read_registration_csv_first_block(self.regfile)
+        self._apply_bead_registration_list(registration_list)
+
+    def ApplyBeadRegXML(self, xml_path=None):
+        if xml_path is None:
+            xml_path = self.regxml
+        if xml_path is None:
+            raise ValueError("No bead registration XML was provided.")
+        registration_list = self._read_registration_xml_first_block(xml_path)
+        self._apply_bead_registration_list(registration_list)
+
+
+    def _copy_element(self, elem):
+        """ElementTree deepcopy replacement compatible with Jython/Python 2."""
+        return ET.fromstring(ET.tostring(elem))
+
+    def _get_text_anywhere(self, elem, names):
+        for name in names:
+            child = elem.find(name)
+            if child is not None and child.text is not None:
+                return child.text
+            child = elem.find('.//' + name)
+            if child is not None and child.text is not None:
+                return child.text
+        return None
+
+    def _read_setup_attribute_map(self, root):
+        """
+        Return setup_id -> {channel, angle, tile} from a BigStitcher/BDV XML.
+
+        The XML produced by different Fiji/BigStitcher versions can place
+        angle/channel/tile either directly under ViewSetup or under nested
+        attributes. This reader is intentionally permissive.
+        """
+        setup_map = {}
+        for setup in root.findall('.//ViewSetup'):
+            sid = self._get_text_anywhere(setup, ['id'])
+            if sid is None:
+                continue
+            sid = str(int(sid))
+            ch = self._get_text_anywhere(setup, ['channel', 'Channel'])
+            ang = self._get_text_anywhere(setup, ['angle', 'Angle'])
+            tile = self._get_text_anywhere(setup, ['tile', 'Tile'])
+
+            if ch is None:
+                ch = '0'
+            if ang is None:
+                ang = '0'
+            if tile is None:
+                tile = '0'
+
+            setup_map[sid] = {
+                'channel': str(int(float(ch))),
+                'angle': str(int(float(ang))),
+                'tile': str(int(float(tile)))
+            }
+        return setup_map
+
+    def _find_viewregistration_by_time_setup(self, root, timepoint, setup_id):
+        for vr in root.findall('./ViewRegistrations/ViewRegistration'):
+            tp = vr.get('timepoint')
+            sid = vr.get('setup')
+            if tp is None:
+                tp = vr.get('timepointid')
+            if sid is None:
+                sid = vr.get('setupid')
+            if tp is not None and sid is not None:
+                if str(int(tp)) == str(int(timepoint)) and str(int(sid)) == str(int(setup_id)):
+                    return vr
+        return None
+
+    def _make_source_transform_map_from_bead_xml(self, bead_xml_, source_timepoint, source_tile):
+        """
+        Read the current saved bead XML and select exactly one source view per
+        channel/angle: source_timepoint + source_tile. The returned mapping is:
+
+            (channel, angle) -> list of ViewTransform XML elements
+
+        This is the global registration model: one bead time/tile gives the
+        transform stack for each channel/angle, and those stacks are copied to
+        every sample timepoint/tile/well with the same channel/angle.
+        """
+        if not os.path.exists(bead_xml_):
+            raise IOError("Bead/reference XML not found: " + bead_xml_)
+
+        root = ET.parse(bead_xml_).getroot()
+        setup_map = self._read_setup_attribute_map(root)
+        if len(setup_map) == 0:
+            raise ValueError("Could not read ViewSetup channel/angle/tile metadata from: " + bead_xml_)
+
+        source = {}
+        for setup_id in sorted(setup_map.keys(), key=lambda x: int(x)):
+            meta = setup_map[setup_id]
+            if str(int(meta['tile'])) != str(int(source_tile)):
+                continue
+            vr = self._find_viewregistration_by_time_setup(root, source_timepoint, setup_id)
+            if vr is None:
+                continue
+            key = (meta['channel'], meta['angle'])
+            source[key] = [self._copy_element(child) for child in list(vr)]
+
+        if len(source) == 0:
+            raise ValueError(
+                "No bead ViewRegistrations found for timepoint " + str(source_timepoint) +
+                ", tile " + str(source_tile) + " in: " + bead_xml_
+            )
+        return source
+
+    def CopyBeadRegistrationXMLGlobal(self, bead_xml_, source_timepoint='0', source_tile='0'):
+        """
+        Copy the optimised bead registration from bead_xml_ directly into this
+        sample dataset XML.
+
+        Important assumption implemented here:
+        - bead source = timepoint 0, tile 0 by default;
+        - for each channel/angle, that source transform stack is global;
+        - the same channel/angle stack is copied to every sample timepoint,
+          tile, and well represented in this sample XML.
+
+        This deliberately avoids intermediate CSV files. After editing/saving
+        the bead XML in Fiji/BigStitcher, this method uses the current XML.
+        """
+        sample_xml = os.path.join(self.datapath, self.dataset)
+        if not os.path.exists(sample_xml):
+            raise IOError("Sample XML not found: " + sample_xml)
+
+        source_map = self._make_source_transform_map_from_bead_xml(
+            bead_xml_, source_timepoint, source_tile
+        )
+
+        tree = ET.parse(sample_xml)
+        root = tree.getroot()
+        sample_setup_map = self._read_setup_attribute_map(root)
+        if len(sample_setup_map) == 0:
+            raise ValueError("Could not read sample ViewSetup metadata from: " + sample_xml)
+
+        changed = 0
+        missing = {}
+        for vr in root.findall('./ViewRegistrations/ViewRegistration'):
+            setup_id = vr.get('setup')
+            if setup_id is None:
+                setup_id = vr.get('setupid')
+            if setup_id is None:
+                continue
+            setup_id = str(int(setup_id))
+            if not sample_setup_map.has_key(setup_id):
+                continue
+            meta = sample_setup_map[setup_id]
+            key = (meta['channel'], meta['angle'])
+            if not source_map.has_key(key):
+                missing[key] = 1
+                continue
+
+            for child in list(vr):
+                vr.remove(child)
+            for child in source_map[key]:
+                vr.append(self._copy_element(child))
+            changed += 1
+
+        if changed == 0:
+            raise ValueError("No sample ViewRegistrations were updated. Check channel/angle metadata.")
+
+        tree.write(sample_xml)
+        IJ.log(
+            "Copied global bead registration from timepoint " + str(source_timepoint) +
+            ", tile " + str(source_tile) + " to " + str(changed) +
+            " sample ViewRegistrations: " + sample_xml
+        )
+        if len(missing.keys()) > 0:
+            IJ.log("Warning: missing bead source transforms for channel/angle keys: " + str(missing.keys()))
 
     def ResaveXMLtoHDF5(self, exportpath):
         datapath = os.path.join(self.datapath, self.dataset)

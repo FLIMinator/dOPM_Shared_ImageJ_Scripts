@@ -39,6 +39,22 @@ def make_dataset_basename(well_suffix):
     return "dataset_" + str(well_suffix)
 
 
+def split_dataset_path(xmlpath_):
+    datapath_ = os.path.dirname(xmlpath_)
+    dataset_ = os.path.basename(xmlpath_)
+
+    if dataset_ == '':
+        raise ValueError("Please select a dataset XML file, not just a folder.")
+
+    if not dataset_.lower().endswith('.xml'):
+        raise ValueError("Selected file is not an XML dataset: " + xmlpath_)
+
+    if not os.path.exists(xmlpath_):
+        raise ValueError("Selected dataset XML does not exist: " + xmlpath_)
+
+    return datapath_, dataset_
+
+
 def build_settings_dict(extension_, filepattern_, pixel_, angle_, zplanes):
     return {
         'extension': extension_,
@@ -123,7 +139,6 @@ def process_beads(datapath_, extension_, filepattern_, pixel_, angle_):
     beads.ApplyCalibration()
     beads.transformXMLdataset()
     beads.RegisterDataset()
-    beads.getAffineTransformations()
     beads.ResaveXMLtoHDF5(datapath_)
 
     BoundingBox = defineboundingbox(dataset=beads.dataset)
@@ -134,27 +149,10 @@ def process_beads(datapath_, extension_, filepattern_, pixel_, angle_):
     IJ.log("Finished bead processing for well group: " + suffix_to_name(bead_well_suffix))
 
 
-def process_data_with_beads(beadpath_, datapath_, extension_, filepattern_, pixel_, angle_):
-    bead_well_suffix, bead_well_tail = get_single_bead_well_info(beadpath_, extension_)
+def process_data_with_beads(bead_xml_, datapath_, extension_, filepattern_, pixel_, angle_):
+    bead_xml_datapath, bead_xml_dataset = split_dataset_path(bead_xml_)
 
-    bead_dataset_basename = make_dataset_basename(bead_well_suffix)
-    bead_registration_csv = os.path.normpath(
-        os.path.join(beadpath_, bead_dataset_basename + "_registrations.csv")
-    )
-
-    beads = mvrsetup(
-        datapath=beadpath_,
-        regpath=r'',
-        filepattern=filepattern_,
-        extension=extension_,
-        px=pixel_,
-        py=pixel_,
-        angle=angle_,
-        well_suffix=bead_well_suffix,
-        well_tail=bead_well_tail,
-        dataset_basename=bead_dataset_basename
-    )
-    beads.getAffineTransformations()
+    IJ.log("Using bead registration XML: " + bead_xml_)
 
     data_infos = get_data_well_info_list(datapath_, extension_)
 
@@ -163,7 +161,7 @@ def process_data_with_beads(beadpath_, datapath_, extension_, filepattern_, pixe
 
         sample = mvrsetup(
             datapath=datapath_,
-            regpath=beadpath_,
+            regpath=bead_xml_datapath,
             filepattern=filepattern_,
             extension=extension_,
             px=pixel_,
@@ -172,7 +170,7 @@ def process_data_with_beads(beadpath_, datapath_, extension_, filepattern_, pixe
             well_suffix=data_well_suffix,
             well_tail=data_well_tail,
             dataset_basename=make_dataset_basename(data_well_suffix),
-            registration_source_csv=bead_registration_csv
+            registration_source_xml=bead_xml_
         )
 
         if not sample.dims:
@@ -182,7 +180,7 @@ def process_data_with_beads(beadpath_, datapath_, extension_, filepattern_, pixe
         sample.getCalibrations()
         sample.ApplyCalibration()
         sample.transformXMLdataset()
-        sample.ApplyBeadRegCSV()
+        sample.CopyBeadRegistrationXMLGlobal(bead_xml_, source_timepoint="0", source_tile="0")
 
         IJ.log("Finished data well group: " + suffix_to_name(data_well_suffix))
 
@@ -231,9 +229,11 @@ def main():
     gui.showDialog()
 
     if gui.wasOKed():
+        # Use the single canonical dOPM pattern. Channel handling is inferred:
+        # multi-channel ND2 = all channels in one file; TIFF/single-channel ND2 =
+        # channel 0 unless a future importer explicitly reintroduces channel files.
         filepatternchoices = [
-            "spim_Time{tttt}_Tile{xxxx}_angle{a}",
-            "spim_Time{tttt}_Tile{xxxx}_channel{c}_angle{a}"
+            "spim_Time{tttt}_Tile{xxxx}_angle{a}"
         ]
         extensionchoices = [".nd2", ".tif", ".tiff"]
 
@@ -266,7 +266,7 @@ def main():
 
         elif inChoice == choices[1]:
             gui = GenericDialogPlus(inChoice)
-            gui.addDirectoryOrFileField("Bead data folder", prefs.get(None, "beadpath_", ""))
+            gui.addFileField("Optimised bead/reference dataset XML", prefs.get(None, "bead_xml_", ""))
             gui.addDirectoryOrFileField("Data folder", prefs.get(None, "datapath_", ""))
             gui.addChoice("Image file extension", extensionchoices, extensionchoices[0])
             gui.addToSameRow()
@@ -276,7 +276,7 @@ def main():
             gui.showDialog()
 
             if gui.wasOKed():
-                beadpath_ = gui.getNextString()
+                bead_xml_ = gui.getNextString()
                 datapath_ = gui.getNextString()
                 extension_ = gui.getNextChoice()
                 filepattern_ = gui.getNextChoice()
@@ -284,14 +284,14 @@ def main():
                 angle_ = gui.getNextNumber()
 
                 prefs.put(None, "datapath_", datapath_)
-                prefs.put(None, "beadpath_", beadpath_)
+                prefs.put(None, "bead_xml_", bead_xml_)
                 prefs.put(None, "extension_", extension_)
                 prefs.put(None, "filepattern_", filepattern_)
                 prefs.put(None, "pixel_", pixel_)
                 prefs.put(None, "angle_", angle_)
 
                 process_data_with_beads(
-                    beadpath_,
+                    bead_xml_,
                     datapath_,
                     extension_,
                     filepattern_,

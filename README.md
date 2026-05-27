@@ -30,7 +30,7 @@ The current design treats the BigStitcher dataset XML as the source of truth for
 
 Use the tested Fiji distribution:
 
-<[https://imperialcollegelondon.app.box.com/s/2pc9iiusvuh36uc8arceoutrwxi193ul/file/1364388978888](https://imperialcollegelondon.box.com/s/g2gcl5hudoosoxwfb4xcan5javiytj99)>
+<https://imperialcollegelondon.app.box.com/s/2pc9iiusvuh36uc8arceoutrwxi193ul/file/1364388978888>
 
 Other Fiji versions may work, but compatibility depends on the installed Multiview Reconstruction / BigStitcher and CLIJ versions.
 
@@ -246,7 +246,7 @@ A small test dataset should be made available on Box.
 
 Dummy Box link:
 
-<https://imperialcollegelondon.box.com/s/REPLACE_WITH_DOPM_TEST_DATA_LINK>
+<https://imperialcollegelondon.box.com/s/2pc9iiusvuh36uc8arceoutrwxi193ul>
 
 Expected local test layout:
 

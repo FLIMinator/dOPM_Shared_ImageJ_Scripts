@@ -46,6 +46,27 @@ def find_dataset_xmls(folder):
     return xmls
 
 
+
+def get_geometry_parameters_dialog(title):
+    gui = GenericDialogPlus(title)
+    gui.addNumericField("Raw Z planes / raw stack depth", prefs.getFloat(None, "rawzplanes_", 0), 0)
+    gui.addNumericField("Prism angle (degrees)", prefs.getFloat(None, "prismangle_", 0), 2)
+    gui.showDialog()
+
+    if not gui.wasOKed():
+        return None
+
+    rawzplanes_ = gui.getNextNumber()
+    prismangle_ = gui.getNextNumber()
+
+    prefs.put(None, "rawzplanes_", rawzplanes_)
+    prefs.put(None, "prismangle_", prismangle_)
+
+    if rawzplanes_ <= 0:
+        raise ValueError("Raw Z planes must be greater than zero for automatic geometry bounding box.")
+
+    return rawzplanes_, prismangle_
+
 def apply_bb_to_dataset(datapath_, dataset_, BB):
     bb_obj = defineboundingbox(dataset=dataset_)
     bb_obj.defineBoundingBoxNoInteraction(datapath_)
@@ -53,8 +74,8 @@ def apply_bb_to_dataset(datapath_, dataset_, BB):
     IJ.log("Applied bounding box to: " + dataset_)
 
 
-def compute_geometry_bb(datapath_, dataset_):
-    bb_obj = defineboundingbox(dataset=dataset_)
+def compute_geometry_bb(datapath_, dataset_, rawzplanes_, prismangle_):
+    bb_obj = defineboundingbox(dataset=dataset_, rawzplanes=rawzplanes_, prismangle=prismangle_)
     BB = bb_obj.OptimalBoundingBox(datapath_)
     bb_obj.defineBoundingBoxNoInteraction(datapath_)
     bb_obj.modifyBoundingBox(datapath_, BB)
@@ -89,11 +110,11 @@ def define_interactively_from_reference(reference_xml_, target_xml_):
     apply_bb_to_dataset(target_datapath_, target_dataset_, BB)
 
 
-def compute_geometry_from_reference_and_apply(reference_xml_, target_xml_):
+def compute_geometry_from_reference_and_apply(reference_xml_, target_xml_, rawzplanes_, prismangle_):
     ref_datapath_, ref_dataset_ = split_dataset_path(reference_xml_)
     target_datapath_, target_dataset_ = split_dataset_path(target_xml_)
 
-    ref_bb_obj = defineboundingbox(dataset=ref_dataset_)
+    ref_bb_obj = defineboundingbox(dataset=ref_dataset_, rawzplanes=rawzplanes_, prismangle=prismangle_)
     BB = ref_bb_obj.OptimalBoundingBox(ref_datapath_)
     ref_bb_obj.defineBoundingBoxNoInteraction(ref_datapath_)
     ref_bb_obj.modifyBoundingBox(ref_datapath_, BB)
@@ -142,10 +163,10 @@ def batch_define_interactively_from_reference(reference_xml_, target_folder_):
         apply_bb_to_dataset(target_folder_, dataset_, BB)
 
 
-def batch_geometry_from_reference(reference_xml_, target_folder_):
+def batch_geometry_from_reference(reference_xml_, target_folder_, rawzplanes_, prismangle_):
     ref_datapath_, ref_dataset_ = split_dataset_path(reference_xml_)
 
-    ref_bb_obj = defineboundingbox(dataset=ref_dataset_)
+    ref_bb_obj = defineboundingbox(dataset=ref_dataset_, rawzplanes=rawzplanes_, prismangle=prismangle_)
     BB = ref_bb_obj.OptimalBoundingBox(ref_datapath_)
     ref_bb_obj.defineBoundingBoxNoInteraction(ref_datapath_)
     ref_bb_obj.modifyBoundingBox(ref_datapath_, BB)
@@ -161,7 +182,7 @@ def batch_geometry_from_reference(reference_xml_, target_folder_):
         apply_bb_to_dataset(target_folder_, dataset_, BB)
 
 
-def batch_geometry_per_xml(target_folder_):
+def batch_geometry_per_xml(target_folder_, rawzplanes_, prismangle_):
     target_xmls = find_dataset_xmls(target_folder_)
     if len(target_xmls) == 0:
         raise ValueError("No dataset XML files found in folder: " + target_folder_)
@@ -170,7 +191,7 @@ def batch_geometry_per_xml(target_folder_):
     IJ.log(", ".join(target_xmls))
 
     for dataset_ in target_xmls:
-        compute_geometry_bb(target_folder_, dataset_)
+        compute_geometry_bb(target_folder_, dataset_, rawzplanes_, prismangle_)
 
 
 def main():
@@ -213,7 +234,10 @@ def main():
             elif method_choice == method_choices[1]:
                 copy_existing_bb_from_reference(reference_xml_, target_xml_)
             elif method_choice == method_choices[2]:
-                compute_geometry_from_reference_and_apply(reference_xml_, target_xml_)
+                params = get_geometry_parameters_dialog("Automatic geometry bounding box parameters")
+                if params is None:
+                    return
+                compute_geometry_from_reference_and_apply(reference_xml_, target_xml_, params[0], params[1])
 
     elif mode_choice == mode_choices[1]:
         if method_choice == method_choices[2]:
@@ -229,10 +253,14 @@ def main():
                 prefs.put(None, "target_folder_", target_folder_)
                 prefs.put(None, "reference_xml_", reference_xml_)
 
+                params = get_geometry_parameters_dialog("Automatic geometry bounding box parameters")
+                if params is None:
+                    return
+
                 if reference_xml_:
-                    batch_geometry_from_reference(reference_xml_, target_folder_)
+                    batch_geometry_from_reference(reference_xml_, target_folder_, params[0], params[1])
                 else:
-                    batch_geometry_per_xml(target_folder_)
+                    batch_geometry_per_xml(target_folder_, params[0], params[1])
 
         else:
             gui = GenericDialogPlus("Batch copy bounding box to all xmls in folder")

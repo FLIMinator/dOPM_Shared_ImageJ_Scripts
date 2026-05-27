@@ -14,7 +14,7 @@ path.append(code_path)
 if isfile(ScriptPath):
     os.remove(ScriptPath)
 
-from dopmmvr import mvrsetup, writedopmxml, defineboundingbox
+from dopmmvr import mvrsetup, defineboundingbox
 
 
 def suffix_to_name(well_suffix):
@@ -128,20 +128,13 @@ def process_beads(datapath_, extension_, filepattern_, pixel_, angle_):
     if not beads.dims:
         raise ValueError("No valid bead files matched the expected pattern in: " + datapath_)
 
-    zplanes = beads.dims[2]
-    settings = build_settings_dict(extension_, filepattern_, pixel_, angle_, zplanes)
-
-    settingsfile = os.path.join(datapath_, 'dopmsettings.xml')
-    writedopmxml(settingsfile, settings)
-
     beads.createXMLdataset()
-    beads.getCalibrations()
-    beads.ApplyCalibration()
+    beads.ApplyCalibrationFromXML()
     beads.transformXMLdataset()
     beads.RegisterDataset()
     beads.ResaveXMLtoHDF5(datapath_)
 
-    BoundingBox = defineboundingbox(dataset=beads.dataset)
+    BoundingBox = defineboundingbox(dataset=beads.dataset, rawzplanes=beads.dims[2], prismangle=angle_)
     BB = BoundingBox.OptimalBoundingBox(datapath_)
     BoundingBox.defineBoundingBoxNoInteraction(datapath_)
     BoundingBox.modifyBoundingBox(datapath_, BB)
@@ -177,8 +170,7 @@ def process_data_with_beads(bead_xml_, datapath_, extension_, filepattern_, pixe
             raise ValueError("No valid data files matched the expected pattern in: " + datapath_)
 
         sample.createXMLdataset()
-        sample.getCalibrations()
-        sample.ApplyCalibration()
+        sample.ApplyCalibrationFromXML()
         sample.transformXMLdataset()
         sample.CopyBeadRegistrationXMLGlobal(bead_xml_, source_timepoint="0", source_tile="0")
 
@@ -208,8 +200,7 @@ def process_data_without_beads(datapath_, extension_, filepattern_, pixel_, angl
             raise ValueError("No valid data files matched the expected pattern in: " + datapath_)
 
         sample.createXMLdataset()
-        sample.getCalibrations()
-        sample.ApplyCalibration()
+        sample.ApplyCalibrationFromXML()
         sample.transformXMLdataset()
 
         IJ.log("Finished data well group: " + suffix_to_name(data_well_suffix))

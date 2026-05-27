@@ -497,27 +497,38 @@ class mvrsetup(object):
                 out.append(str(i))
         return out
 
-    def getCalibrations(self):
+    def _read_first_calibration_affine_from_xml(self):
+        """
+        Read the initial voxel calibration affine directly from the just-created
+        BigStitcher XML.
+
+        This replaces the old getCalibrations() -> dataset_calibrations.csv ->
+        ApplyCalibration() round trip. It preserves the original behaviour: use
+        the final transform from the first ViewRegistration as the calibration
+        transform, then reapply it globally after clearing existing transforms.
+
+        The calibration operation is still intentionally retained because the
+        plugin workflow may not carry the calibration forward reliably. Only the
+        temporary CSV sidecar is removed.
+        """
         file = os.path.join(self.datapath, self.dataset)
 
+        if not os.path.exists(file):
+            raise IOError("Dataset XML not found: " + file)
+
         root = ET.parse(file).getroot()
-        affine_list = []
-        spacer = 'NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN'
 
         for node in root.findall('./ViewRegistrations/ViewRegistration'):
             elem = None
-            for i in node:
-                elem = i.find('affine').text
-            affine_list.append(elem)
-            affine_list.append(spacer)
+            for transform_node in node:
+                affine_node = transform_node.find('affine')
+                if affine_node is not None and affine_node.text is not None:
+                    elem = affine_node.text
 
-        savepath = os.path.normpath(os.path.join(os.path.split(file)[0], self.calibration_csv))
-        savepath = savepath.replace('\\', '/')
+            if elem is not None:
+                return elem
 
-        with open(savepath, "wb") as csv_file:
-            writer = csv.writer(csv_file)
-            for line in affine_list:
-                writer.writerow(line.split())
+        raise ValueError("No calibration affine found in dataset XML: " + file)
 
     def getAffineTransformations(self):
         file = os.path.join(self.datapath, self.dataset)
@@ -622,19 +633,13 @@ class mvrsetup(object):
             "number_of_ransac_iterations=Normal"
         )
 
-    def ApplyCalibration(self):
+    def ApplyCalibrationFromXML(self):
         channels = self.dims[4]
         times = self.dims[3]
         tiles = self.dims[8]
         dataset = os.path.join(self.datapath, self.dataset)
 
-        registration_list = []
-        Reader = csv.reader(open(self.calibfile), delimiter=' ', quotechar='|')
-
-        for registration in Reader:
-            registration_list.append(registration[0])
-
-        registration = registration_list[0]
+        registration = self._read_first_calibration_affine_from_xml()
 
         if (times.find('-') == -1 and times.find(',') == -1) and (len(self.csvtoarray(channels, 'int')) == 1):
             if len(self.csvtoarray(tiles, 'int')) == 1:
@@ -649,6 +654,13 @@ class mvrsetup(object):
             IJ.run("Apply Transformations", "select=[" + dataset + "] apply_to_angle=[All angles] apply_to_channel=[All channels] apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] transformation=Affine apply=[Identity transform (removes any existing transforms)] same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_angles same_transformation_for_all_tiles all_timepoints_all_channels_illumination_0_all_angles=[" + registration + "]")
         else:
             print 'Unexpected calibration application case'
+
+    def ApplyCalibration(self):
+        """
+        Backward-compatible alias. The calibration is now read directly from the
+        dataset XML instead of from dataset_calibrations.csv.
+        """
+        self.ApplyCalibrationFromXML()
 
     def _read_registration_csv_first_block(self, csv_path):
         """
@@ -1497,7 +1509,7 @@ class mvrgetvolumes(object):
 class defineboundingbox(object):
 
     def __init__(self, **kwargs):
-        valid_keys = ["datapath", "beadpath", "dataset"]
+        valid_keys = ["datapath", "beadpath", "dataset", "rawzplanes", "prismangle"]
         for key in valid_keys:
             setattr(self, key, kwargs.get(key))
 
@@ -1565,13 +1577,20 @@ class defineboundingbox(object):
         )
 
     def OptimalBoundingBox(self, datapath):
-        settingsfile = os.path.join(datapath, 'dopmsettings.xml')
         IJ.log(str(datapath))
-        IJ.log(str(settingsfile))
-        settings = readdopmxml(settingsfile)
 
-        zstack_microns = int(settings['rawzplanes'])
-        prism_angle = float(settings['prismangle'])
+        if getattr(self, 'rawzplanes', None) is not None and getattr(self, 'prismangle', None) is not None:
+            zstack_microns = int(self.rawzplanes)
+            prism_angle = float(self.prismangle)
+        else:
+            # Backward-compatible fallback for older callers. The main refactored
+            # workflow passes these values directly and no longer depends on
+            # dopmsettings.xml.
+            settingsfile = os.path.join(datapath, 'dopmsettings.xml')
+            IJ.log(str(settingsfile))
+            settings = readdopmxml(settingsfile)
+            zstack_microns = int(settings['rawzplanes'])
+            prism_angle = float(settings['prismangle'])
 
         datapath_ = os.path.join(datapath, self.dataset)
         IJ.log(str(datapath_))
@@ -1649,13 +1668,6 @@ class defineboundingbox(object):
         IJ.log("recommended bounding box for diamond for z range is: ")
         IJ.log(' '.join(bb_z))
         IJ.log("--------------------------------------------------------")
-
-        settings['BoundingBoxDefinition'] = 'My Bounding Box'
-        settings['boundingboxmin'] = ' '.join([bb_x[0], bb_y[0], bb_z[0]])
-        settings['boundingboxmax'] = ' '.join([bb_x[1], bb_y[1], bb_z[1]])
-
-        settingsfile = os.path.join(datapath, 'dopmsettings.xml')
-        writedopmxml(settingsfile, settings)
 
         BB = [[bb_x[0], bb_y[0], bb_z[0]], [bb_x[1], bb_y[1], bb_z[1]]]
         return BB

@@ -8,12 +8,13 @@ The scripts provide a lightweight Fiji interface for defining, geometrically tra
 
 ## Overview
 
-This repository supports dOPM datasets consisting of two obliquely acquired views, typically named as angle `0` and angle `70`.
+This repository primarily supports dOPM datasets consisting of two obliquely acquired views, typically named as angle `0` and angle `70`. It also supports a no-registration single-view dataset creation path for data containing only one of those angles.
 
 The scripts can:
 
 - define BigStitcher multiview datasets from raw ND2 or TIFF stacks
 - apply dOPM geometric transforms using XML metadata
+- create and transform no-registration single-view datasets
 - register views using bead datasets
 - reuse an optimised bead registration for sample datasets
 - define or copy bounding boxes
@@ -88,6 +89,12 @@ Files without a well suffix are processed as the default dataset:
 ```text
 dataset.xml
 ```
+
+### Single-view no-registration datasets
+
+The `Transform one-view data` option in `make_mvr_dataset.py` is for data folders containing exactly one dOPM acquisition angle, normally either `angle0` or `angle70` for a 17.5 degree prism angle. The script detects the actual angle token from the filenames and creates a dataset containing only that angle.
+
+Single-view mode deliberately does not run bead registration or copy bead registrations. It applies the corresponding geometric dOPM transform for the detected view and then leaves the XML ready for inspection/export. If the folder contains two angles, use the two-view options instead; if the two-view option is selected for a one-angle folder, the script now raises a clear error rather than creating an invalid two-angle dataset.
 
 ### File pattern
 
@@ -347,7 +354,31 @@ For the supplied test tree:
 - `WellF6` has two timepoints and one tile
 - both wells have two angles
 
-#### 4. Global bead registration transfer
+#### 4. Single-view no-registration dataset
+
+Create a test folder containing only one acquisition angle, for example:
+
+```text
+spim_Time0000_Tile0000_angle0.nd2
+```
+
+or:
+
+```text
+spim_Time0000_Tile0000_angle70.nd2
+```
+
+Run `make_mvr_dataset.py` and select `Transform one-view data`.
+
+Check that:
+
+- exactly one angle is detected
+- the created dataset XML only contains that angle
+- the geometric dOPM transform is applied
+- no bead registration is run or copied
+- choosing a two-view workflow on the same folder gives a clear validation error
+
+#### 5. Global bead registration transfer
 
 Use a bead XML from `v1` or `v2` as the bead registration source.
 
@@ -360,7 +391,7 @@ Check that:
 - the transform is applied to each matching channel and angle
 - no `dataset_registrations.csv` is required
 
-#### 5. Bounding box
+#### 6. Bounding box
 
 Run:
 
@@ -376,7 +407,7 @@ Test all relevant modes:
 
 For automatic geometry mode, confirm that the script asks for the required geometry inputs and does not depend on `dopmsettings.xml`.
 
-#### 6. Volume export
+#### 7. Volume export
 
 Run:
 
@@ -394,7 +425,7 @@ Check:
 
 Confirm that outputs are written to the expected dataset-specific folders.
 
-#### 7. MIP generation
+#### 8. MIP generation
 
 Run:
 

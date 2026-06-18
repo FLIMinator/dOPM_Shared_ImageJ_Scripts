@@ -94,7 +94,8 @@ class mvrsetup(object):
             "bead_reference_timepoint",
             "registration_source_csv",
             "registration_source_xml",
-            "view_mode"
+            "view_mode",
+            "target_angle"
         ]
         for key in valid_keys:
             setattr(self, key, kwargs.get(key))
@@ -139,6 +140,14 @@ class mvrsetup(object):
         self.view_mode = getattr(self, 'view_mode', None)
         if self.view_mode is None:
             self.view_mode = 'two_view'
+
+        self.target_angle = getattr(self, 'target_angle', None)
+        if self.target_angle is not None:
+            self.target_angle = str(self.target_angle).strip()
+            if self.target_angle == '':
+                self.target_angle = None
+            else:
+                self.target_angle = str(int(float(self.target_angle)))
 
         self.detected_angles = []
         self.dims = self.GetImageInfo()
@@ -208,6 +217,9 @@ class mvrsetup(object):
                     continue
 
                 if self._has_explicit_channel_token() and parsed['channel'] is None:
+                    continue
+
+                if self.target_angle is not None and parsed['angle'] != self.target_angle:
                     continue
 
                 parsed_tail = parsed['well_tail']
@@ -307,10 +319,14 @@ class mvrsetup(object):
             raise ValueError("No angle tokens were detected in the input files.")
 
         if self.view_mode == 'single_view':
+            if self.target_angle is not None:
+                IJ.log("Single-view requested angle filter: angle" + str(self.target_angle))
+
             if len(self.detected_angles) != 1:
                 raise ValueError(
-                    "Single-view mode expects exactly one acquisition angle, but found " +
-                    str(self.detected_angles) + ". Please use the two-view option for two angles."
+                    "Single-view mode needs one angle to process, but found " +
+                    str(self.detected_angles) + ". If the folder contains both views, " +
+                    "set the single-view angle field to 0 or " + expected[1] + "."
                 )
             if self.detected_angles[0] not in expected:
                 raise ValueError(

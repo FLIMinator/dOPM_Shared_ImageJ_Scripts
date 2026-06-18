@@ -33,10 +33,18 @@ def log_detected_groups(label, items):
     IJ.log(label + ": " + ", ".join(pretty))
 
 
-def make_dataset_basename(well_suffix):
+def make_dataset_basename(well_suffix, angle_suffix=None):
     if well_suffix is None:
-        return "dataset"
-    return "dataset_" + str(well_suffix)
+        root = "dataset"
+    else:
+        root = "dataset_" + str(well_suffix)
+
+    if angle_suffix is not None:
+        angle_suffix = str(angle_suffix).strip()
+        if angle_suffix != '':
+            root = root + "_angle" + str(int(float(angle_suffix)))
+
+    return root
 
 
 def split_dataset_path(xmlpath_):
@@ -209,7 +217,14 @@ def process_data_without_beads(datapath_, extension_, filepattern_, pixel_, angl
         IJ.log("Finished data well group: " + suffix_to_name(data_well_suffix))
 
 
-def process_single_view_data(datapath_, extension_, filepattern_, pixel_, angle_):
+def process_single_view_data(datapath_, extension_, filepattern_, pixel_, angle_, target_angle_=None):
+    if target_angle_ is not None:
+        target_angle_ = str(target_angle_).strip()
+        if target_angle_ == '':
+            target_angle_ = None
+        else:
+            target_angle_ = str(int(float(target_angle_)))
+
     data_infos = get_data_well_info_list(datapath_, extension_)
 
     for data_well_suffix, data_well_tail in data_infos:
@@ -225,8 +240,9 @@ def process_single_view_data(datapath_, extension_, filepattern_, pixel_, angle_
             angle=angle_,
             well_suffix=data_well_suffix,
             well_tail=data_well_tail,
-            dataset_basename=make_dataset_basename(data_well_suffix),
-            view_mode='single_view'
+            dataset_basename=make_dataset_basename(data_well_suffix, target_angle_),
+            view_mode='single_view',
+            target_angle=target_angle_
         )
 
         if not sample.dims:
@@ -362,6 +378,7 @@ def main():
             gui.addChoice("File pattern", filepatternchoices, filepatternchoices[0])
             gui.addNumericField("pixel size (um)", prefs.getFloat(None, "pixel_", 0), 2)
             gui.addNumericField("prism angle (degrees)", prefs.getFloat(None, "angle_", 0), 2)
+            gui.addStringField("Single-view angle to use, e.g. 0 or 70; blank = auto if folder has one angle", prefs.get(None, "single_view_angle_", ""), 8)
             gui.showDialog()
 
             if gui.wasOKed():
@@ -370,19 +387,22 @@ def main():
                 filepattern_ = gui.getNextChoice()
                 pixel_ = gui.getNextNumber()
                 angle_ = gui.getNextNumber()
+                target_angle_ = gui.getNextString()
 
                 prefs.put(None, "datapath_", datapath_)
                 prefs.put(None, "extension_", extension_)
                 prefs.put(None, "filepattern_", filepattern_)
                 prefs.put(None, "pixel_", pixel_)
                 prefs.put(None, "angle_", angle_)
+                prefs.put(None, "single_view_angle_", target_angle_)
 
                 process_single_view_data(
                     datapath_,
                     extension_,
                     filepattern_,
                     pixel_,
-                    angle_
+                    angle_,
+                    target_angle_
                 )
 
 

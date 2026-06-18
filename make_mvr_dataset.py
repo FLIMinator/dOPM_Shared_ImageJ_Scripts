@@ -122,7 +122,8 @@ def process_beads(datapath_, extension_, filepattern_, pixel_, angle_):
         angle=angle_,
         well_suffix=bead_well_suffix,
         well_tail=bead_well_tail,
-        dataset_basename=make_dataset_basename(bead_well_suffix)
+        dataset_basename=make_dataset_basename(bead_well_suffix),
+        view_mode='two_view'
     )
 
     if not beads.dims:
@@ -163,7 +164,8 @@ def process_data_with_beads(bead_xml_, datapath_, extension_, filepattern_, pixe
             well_suffix=data_well_suffix,
             well_tail=data_well_tail,
             dataset_basename=make_dataset_basename(data_well_suffix),
-            registration_source_xml=bead_xml_
+            registration_source_xml=bead_xml_,
+            view_mode='two_view'
         )
 
         if not sample.dims:
@@ -193,7 +195,8 @@ def process_data_without_beads(datapath_, extension_, filepattern_, pixel_, angl
             angle=angle_,
             well_suffix=data_well_suffix,
             well_tail=data_well_tail,
-            dataset_basename=make_dataset_basename(data_well_suffix)
+            dataset_basename=make_dataset_basename(data_well_suffix),
+            view_mode='two_view'
         )
 
         if not sample.dims:
@@ -204,6 +207,36 @@ def process_data_without_beads(datapath_, extension_, filepattern_, pixel_, angl
         sample.transformXMLdataset()
 
         IJ.log("Finished data well group: " + suffix_to_name(data_well_suffix))
+
+
+def process_single_view_data(datapath_, extension_, filepattern_, pixel_, angle_):
+    data_infos = get_data_well_info_list(datapath_, extension_)
+
+    for data_well_suffix, data_well_tail in data_infos:
+        IJ.log("Processing single-view data well group: " + suffix_to_name(data_well_suffix))
+
+        sample = mvrsetup(
+            datapath=datapath_,
+            regpath=r'',
+            filepattern=filepattern_,
+            extension=extension_,
+            px=pixel_,
+            py=pixel_,
+            angle=angle_,
+            well_suffix=data_well_suffix,
+            well_tail=data_well_tail,
+            dataset_basename=make_dataset_basename(data_well_suffix),
+            view_mode='single_view'
+        )
+
+        if not sample.dims:
+            raise ValueError("No valid single-view data files matched the expected pattern in: " + datapath_)
+
+        sample.createXMLdataset()
+        sample.ApplyCalibrationFromXML()
+        sample.transformXMLdataset()
+
+        IJ.log("Finished single-view data well group: " + suffix_to_name(data_well_suffix))
 
 
 def main():
@@ -322,7 +355,35 @@ def main():
                 )
 
         elif inChoice == choices[3]:
-            print 'not implemented yet'
+            gui = GenericDialogPlus(inChoice)
+            gui.addDirectoryOrFileField("Data folder", prefs.get(None, "datapath_", ""))
+            gui.addChoice("Image file extension", extensionchoices, extensionchoices[0])
+            gui.addToSameRow()
+            gui.addChoice("File pattern", filepatternchoices, filepatternchoices[0])
+            gui.addNumericField("pixel size (um)", prefs.getFloat(None, "pixel_", 0), 2)
+            gui.addNumericField("prism angle (degrees)", prefs.getFloat(None, "angle_", 0), 2)
+            gui.showDialog()
+
+            if gui.wasOKed():
+                datapath_ = gui.getNextString()
+                extension_ = gui.getNextChoice()
+                filepattern_ = gui.getNextChoice()
+                pixel_ = gui.getNextNumber()
+                angle_ = gui.getNextNumber()
+
+                prefs.put(None, "datapath_", datapath_)
+                prefs.put(None, "extension_", extension_)
+                prefs.put(None, "filepattern_", filepattern_)
+                prefs.put(None, "pixel_", pixel_)
+                prefs.put(None, "angle_", angle_)
+
+                process_single_view_data(
+                    datapath_,
+                    extension_,
+                    filepattern_,
+                    pixel_,
+                    angle_
+                )
 
 
 if __name__ in ['__builtin__', '__main__']:

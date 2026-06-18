@@ -93,7 +93,8 @@ class mvrsetup(object):
             "dataset_basename",
             "bead_reference_timepoint",
             "registration_source_csv",
-            "registration_source_xml"
+            "registration_source_xml",
+            "view_mode"
         ]
         for key in valid_keys:
             setattr(self, key, kwargs.get(key))
@@ -135,7 +136,14 @@ class mvrsetup(object):
         else:
             self.regxml = None
 
+        self.view_mode = getattr(self, 'view_mode', None)
+        if self.view_mode is None:
+            self.view_mode = 'two_view'
+
+        self.detected_angles = []
         self.dims = self.GetImageInfo()
+        if self.dims:
+            self.validate_view_mode()
 
     @staticmethod
     def parse_spim_filename_static(filename):
@@ -275,6 +283,69 @@ class mvrsetup(object):
         tails.sort(key=_sort_key)
         return tails
 
+    def _expected_second_angle(self):
+        return str(int(round(4 * self.angle)))
+
+    def _expected_dopm_angles(self):
+        return ['0', self._expected_second_angle()]
+
+    def _sorted_unique_numeric_strings(self, values):
+        out = []
+        for value in values:
+            if value is None:
+                continue
+            value = str(int(value))
+            if value not in out:
+                out.append(value)
+        out.sort(key=lambda x: int(x))
+        return out
+
+    def validate_view_mode(self):
+        expected = self._expected_dopm_angles()
+
+        if len(self.detected_angles) == 0:
+            raise ValueError("No angle tokens were detected in the input files.")
+
+        if self.view_mode == 'single_view':
+            if len(self.detected_angles) != 1:
+                raise ValueError(
+                    "Single-view mode expects exactly one acquisition angle, but found " +
+                    str(self.detected_angles) + ". Please use the two-view option for two angles."
+                )
+            if self.detected_angles[0] not in expected:
+                raise ValueError(
+                    "Single-view mode currently supports dOPM angle0 or angle" + expected[1] +
+                    " files. Found angle" + str(self.detected_angles[0]) + "."
+                )
+            IJ.log("Single-view dataset mode: using angle" + str(self.detected_angles[0]))
+            return
+
+        if self.view_mode == 'two_view':
+            if len(self.detected_angles) != 2:
+                raise ValueError(
+                    "Two-view mode expects exactly two acquisition angles " + str(expected) +
+                    ", but found " + str(self.detected_angles) +
+                    ". Use 'Transform one-view data' for a single angle dataset."
+                )
+            for angle_value in expected:
+                if angle_value not in self.detected_angles:
+                    raise ValueError(
+                        "Two-view mode expects angle tokens " + str(expected) +
+                        ", but found " + str(self.detected_angles) + "."
+                    )
+            IJ.log("Two-view dataset mode: using angles " + str(self.detected_angles))
+            return
+
+        raise ValueError("Unknown view_mode: " + str(self.view_mode))
+
+    def _get_angles_string_for_dataset(self):
+        # Preserve the legacy two-view range syntax for existing workflows.
+        # Single-view mode returns the one detected angle, e.g. "0" or "70".
+        expected = self._expected_dopm_angles()
+        if self.view_mode == 'two_view' and self.detected_angles == expected:
+            return "0-" + expected[1] + ":" + expected[1]
+        return ','.join(self.detected_angles)
+
     def choose_first_timepoint_from_current_files(self):
         times = []
         for each in self.list_input_files():
@@ -293,6 +364,7 @@ class mvrsetup(object):
         channels = []
         times = []
         tiles = []
+        angles = []
         hyperstack = -1
 
         for each in results:
@@ -305,6 +377,7 @@ class mvrsetup(object):
 
             times.append(parsed['time'])
             tiles.append(parsed['tile'])
+            angles.append(parsed['angle'])
 
             if self._has_explicit_channel_token():
                 if parsed['channel'] is None:
@@ -313,6 +386,7 @@ class mvrsetup(object):
 
         T = ','.join(sorted(set(times), key=lambda x: int(x)))
         Tiles = ','.join(sorted(set(tiles), key=lambda x: int(x)))
+        self.detected_angles = self._sorted_unique_numeric_strings(angles)
 
         print results
 
@@ -387,7 +461,7 @@ class mvrsetup(object):
             print 'error in image format - does not match expected types'
             return []
 
-        print [X, Y, Z, T, C, szX, szY, szZ]
+        print [X, Y, Z, T, C, szX, szY, szZ, self.detected_angles]
         return [X, Y, Z, T, C, szX, szY, szZ, Tiles, hyperstack]
 
     def createXMLdataset(self):
@@ -395,7 +469,7 @@ class mvrsetup(object):
         tiles = self.dims[8]
         channels = self.dims[4]
         pz = self.dims[7]
-        angles = "0-" + IJ.d2s(4 * self.angle, 0) + ":" + IJ.d2s(4 * self.angle, 0)
+        angles = self._get_angles_string_for_dataset()
 
         px = IJ.d2s(self.px, 4)
         py = IJ.d2s(self.py, 4)
@@ -987,7 +1061,121 @@ class mvrsetup(object):
         exportpath = os.path.join(exportpath, self.dataset)
         IJ.run("As HDF5", "select=[" + datapath + "] resave_angle=[All angles] resave_channel=[All channels] resave_illumination=[All illuminations] resave_tile=[All tiles] resave_timepoint=[All Timepoints] subsampling_factors=[{ {1,1,1}, {2,2,1} }] hdf5_chunk_sizes=[{ {32,16,8}, {16,16,16} }] timepoints_per_partition=1 setups_per_partition=0 use_deflate_compression export_path=[" + exportpath + "]")
 
+    def _apply_single_view_transform(self):
+        times = self.dims[3]
+        channels = self.dims[4]
+        zplanes = self.dims[2]
+        xdim = self.dims[0]
+        ydim = self.dims[1]
+        pz = self.dims[7]
+
+        Angle_ = 2 * self.angle
+        second_angle = self._expected_second_angle()
+        single_angle = str(self.detected_angles[0])
+
+        zdim = math.floor(zplanes * pz / self.px)
+        mirror_angle = (math.pi / 180) * self.angle
+        tan0 = math.tan(mirror_angle)
+        ydim_deskewed = math.floor(ydim + zdim * tan0)
+        zdim_correct_shift = math.floor(zdim / math.cos(mirror_angle))
+        tan0 = IJ.d2s(tan0, 6)
+        datapath = os.path.join(self.datapath, self.dataset)
+
+        single_time = (times.find('-') == -1 and times.find(',') == -1)
+        multi_channel = (len(self.csvtoarray(channels, 'int')) > 1)
+
+        if single_time and multi_channel:
+            prefix = "timepoint_" + times + "_all_channels_illumination_0"
+            same_flags = "same_transformation_for_all_channels "
+        elif single_time and not multi_channel:
+            prefix = "timepoint_" + times + "_channel_" + channels + "_illumination_0"
+            same_flags = ""
+        elif (not single_time) and multi_channel:
+            prefix = "all_timepoints_all_channels_illumination_0"
+            same_flags = "same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles "
+        else:
+            prefix = "all_timepoints_channel_" + channels + "_illumination_0"
+            same_flags = "same_transformation_for_all_timepoints "
+
+        IJ.log("Applying single-view dOPM transform for angle" + single_angle)
+        all_angle_flags = same_flags + "same_transformation_for_all_angles "
+
+        IJ.run(
+            "Apply Transformations",
+            "select=[" + datapath + "] "
+            "apply_to_angle=[All angles] apply_to_channel=[All channels] "
+            "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
+            "apply_to_timepoint=[All Timepoints] transformation=Affine "
+            "apply=[Current view transformations (appends to current transforms)] " +
+            all_angle_flags +
+            prefix + "_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0," +
+            tan0 + ", 0.0, 0.0, 0.0, 1.0, 0.0]"
+        )
+
+        if single_angle == second_angle:
+            string = IJ.d2s(zdim_correct_shift, 0)
+            IJ.run(
+                "Apply Transformations",
+                "select=[" + datapath + "] "
+                "apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] "
+                "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
+                "apply_to_timepoint=[All Timepoints] processing_angle=[angle " + single_angle + "] "
+                "transformation=Affine apply=[Current view transformations (appends to current transforms)] " +
+                same_flags + prefix + "_angle_" + single_angle +
+                "=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]"
+            )
+            IJ.run(
+                "Apply Transformations",
+                "select=[" + datapath + "] "
+                "apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] "
+                "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
+                "apply_to_timepoint=[All Timepoints] processing_angle=[angle " + single_angle + "] "
+                "transformation=Translation apply=[Current view transformations (appends to current transforms)] " +
+                same_flags + prefix + "_angle_" + single_angle + "=[0,0," + string + "]"
+            )
+            rot = "-" + IJ.d2s(Angle_, 0)
+        else:
+            rot = IJ.d2s(Angle_, 0)
+
+        string1 = IJ.d2s(math.floor(xdim / 2), 0)
+        string2 = IJ.d2s(math.floor(ydim_deskewed / 2), 0)
+        string3 = IJ.d2s(math.floor(zdim_correct_shift / 2), 0)
+
+        IJ.run(
+            "Apply Transformations",
+            "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] "
+            "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
+            "apply_to_timepoint=[All Timepoints] transformation=Translation "
+            "apply=[Current view transformations (appends to current transforms)] " +
+            all_angle_flags + prefix + "_all_angles=[-" + string1 + ",-" + string2 + ",-" + string3 + "]"
+        )
+
+        IJ.run(
+            "Apply Transformations",
+            "select=[" + datapath + "] "
+            "apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] "
+            "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
+            "apply_to_timepoint=[All Timepoints] processing_angle=[angle " + single_angle + "] "
+            "transformation=Rigid apply=[Current view transformations (appends to current transforms)] "
+            "define=[Rotation around axis] " + same_flags +
+            "axis_" + prefix + "_angle_" + single_angle + "=x-axis "
+            "rotation_" + prefix + "_angle_" + single_angle + "=" + rot
+        )
+
+        IJ.run(
+            "Apply Transformations",
+            "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] "
+            "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
+            "apply_to_timepoint=[All Timepoints] transformation=Translation "
+            "apply=[Current view transformations (appends to current transforms)] " +
+            all_angle_flags + prefix + "_all_angles=[" + string1 + "," + string2 + "," + string3 + "]"
+        )
+
     def transformXMLdataset(self):
+        if self.view_mode == 'single_view':
+            self._apply_single_view_transform()
+            return
+
         times = self.dims[3]
         channels = self.dims[4]
         zplanes = self.dims[2]

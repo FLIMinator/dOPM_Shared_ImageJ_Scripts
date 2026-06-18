@@ -488,3 +488,88 @@ The scripts run in Fiji's ImageJ Python environment, which is based on Jython / 
 
 - CLIJ:  
   <https://imagej.net/plugins/clij>
+
+### Single-view no-registration folders with both angles present
+
+`Transform one-view data` can now process one selected angle from a folder that still contains both dOPM views. Use the new **Single-view angle to use** field:
+
+- leave it blank when the folder truly contains only one angle;
+- enter `0` to process only `angle0`;
+- enter `70` to process only `angle70` when using a 17.5 degree prism angle.
+
+When a target angle is entered, the script filters the input file list before dataset creation, so BigStitcher only sees that one angle. The output dataset name includes the selected angle, for example `dataset_WellF5_angle70.xml`, to avoid overwriting a two-view or opposite-view XML from the same folder.
+
+
+## Launcher scripts
+
+This release also includes an optional launcher layer. The launchers do not replace the lower-level scripts; they provide safer, guided entry points that chain the same existing `dopmmvr.py`/BigStitcher steps.
+
+### Included launcher files
+
+- `dopm_preflight.py` — scans a raw data folder and reports detected wells, timepoints, tiles, angles, and predicted XML names.
+- `dopm_create_datasets_launcher.py` — creates and transforms datasets for one well, selected wells, or all detected wells.
+- `dopm_registration_launcher.py` — creates/registers bead XMLs, or applies a predefined/manual bead registration XML to sample XMLs.
+- `dopm_export_launcher.py` — applies/copies/estimates bounding boxes, exports fused or single-angle volumes, and optionally generates MIPs.
+- `dopm_launcher.py` — a master launcher that chains preflight, dataset creation, optional registration transfer, bounding box, export, and optional MIPs.
+- `dopm_launcher_utils.py` — shared helper functions used by the launcher scripts.
+
+### How chained steps are handled
+
+The launcher calls each processing step as a normal blocking Fiji/Jython function call. In practice this means the next step starts only after the previous `IJ.run(...)` or helper function returns.
+
+After important steps, the launcher performs simple readiness checks before continuing:
+
+- after dataset creation, it checks that the expected XML exists;
+- after calibration/transform/registration transfer, it checks that the XML still contains `ViewRegistrations`;
+- after bounding-box creation/copying, it checks that `My Bounding Box` exists in the XML;
+- before cropped export, it refuses to run if `My Bounding Box` is absent;
+- after export, it logs whether expected TIFF output folders were found.
+
+Interactive/manual steps are intentionally not hidden. For example, a human-in-the-loop bead registration workflow should be run as:
+
+1. create/register a bead XML using `dopm_registration_launcher.py` or the existing bead workflow;
+2. inspect and manually optimise the bead XML in Fiji/BigStitcher;
+3. save the optimised bead XML;
+4. run `dopm_create_datasets_launcher.py`, `dopm_registration_launcher.py`, or `dopm_launcher.py` with **Registration = copy predefined bead XML** and point it at the manually optimised XML.
+
+### Well handling
+
+The launcher scans well suffixes from filenames such as:
+
+```text
+spim_Time0000_Tile0000_angle70__WellF5.nd2
+spim_Time0000_Tile0000_angle70__WellG5.nd2
+```
+
+The well field accepts:
+
+```text
+all
+WellF5
+WellF5,WellG5
+F5,G5
+no_well
+```
+
+Each selected well is processed independently and gets its own XML, for example:
+
+```text
+dataset_WellF5.xml
+dataset_WellG5.xml
+dataset_WellF5_angle70.xml
+dataset_WellG5_angle70.xml
+```
+
+### Single-view exports
+
+For a single-view XML created from `angle70`, the XML contains only one view. The launcher therefore lets the user request `angle70` and internally maps that to BigStitcher's view index `0`. This avoids the confusing manual rule that a single-view `angle70` XML must be exported using view `0`.
+
+### Manifest
+
+Dataset creation writes a manifest called:
+
+```text
+dopm_run_manifest.csv
+```
+
+The export launcher can use this manifest instead of blindly processing every `dataset*.xml` file in a folder. This is safer when a folder contains a mixture of two-view XMLs and single-view XMLs such as `dataset_WellF5.xml`, `dataset_WellF5_angle0.xml`, and `dataset_WellF5_angle70.xml`.

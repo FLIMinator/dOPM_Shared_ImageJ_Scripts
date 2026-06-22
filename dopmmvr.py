@@ -752,6 +752,64 @@ class mvrsetup(object):
             "number_of_ransac_iterations=Normal"
         )
 
+    def _single_view_angle_for_macro(self):
+        """
+        Return the angle label that exists in the single-view XML and should be
+        used in BigStitcher macro parameter names.
+
+        Important: in a single-view XML there is only one ViewSetup, but the
+        physical acquisition angle still matters.  We therefore avoid
+        apply_to_angle=[All angles] in the single-view branch because some
+        BigStitcher versions silently keep the default identity/zero model for
+        All-angles parameters when only one angle is present.  Targeting the
+        explicit angle gives the same transform stack that the corresponding
+        physical angle receives in a normal two-view dataset.
+        """
+        if len(self.detected_angles) != 1:
+            raise ValueError(
+                "Single-view transform expected exactly one detected angle, found " +
+                str(self.detected_angles)
+            )
+        return str(self.detected_angles[0])
+
+    def _time_channel_prefix_and_flags(self, include_angle_flags):
+        """
+        Build the BigStitcher macro parameter prefix used by Apply
+        Transformations.
+
+        include_angle_flags is True for legacy/two-view all-angle commands.
+        For single-view commands this must be False: each transform is applied
+        to the explicit XML angle, not to [All angles].
+        """
+        channels = self.dims[4]
+        times = self.dims[3]
+        tiles = self.dims[8]
+
+        single_time = (times.find('-') == -1 and times.find(',') == -1)
+        multi_channel = (len(self.csvtoarray(channels, 'int')) > 1)
+        multi_tile = (len(self.csvtoarray(tiles, 'int')) > 1)
+
+        if single_time and multi_channel:
+            prefix = "timepoint_" + times + "_all_channels_illumination_0"
+            same_flags = "same_transformation_for_all_channels "
+        elif single_time and not multi_channel:
+            prefix = "timepoint_" + times + "_channel_" + channels + "_illumination_0"
+            same_flags = ""
+        elif (not single_time) and multi_channel:
+            prefix = "all_timepoints_all_channels_illumination_0"
+            same_flags = "same_transformation_for_all_timepoints same_transformation_for_all_channels "
+        else:
+            prefix = "all_timepoints_channel_" + channels + "_illumination_0"
+            same_flags = "same_transformation_for_all_timepoints "
+
+        if multi_tile:
+            same_flags += "same_transformation_for_all_tiles "
+
+        if include_angle_flags:
+            same_flags += "same_transformation_for_all_angles "
+
+        return prefix, same_flags
+
     def ApplyCalibrationFromXML(self):
         channels = self.dims[4]
         times = self.dims[3]
@@ -759,6 +817,27 @@ class mvrsetup(object):
         dataset = os.path.join(self.datapath, self.dataset)
 
         registration = self._read_first_calibration_affine_from_xml()
+
+        if self.view_mode == 'single_view':
+            # Do not use apply_to_angle=[All angles] for single-view datasets.
+            # In testing, BigStitcher can silently apply the default identity
+            # model for all-angle macro parameters when the XML has only one
+            # angle.  Target the explicit XML angle so the calibration becomes
+            # the first transform in the single physical view's stack.
+            angle_label = self._single_view_angle_for_macro()
+            prefix, same_flags = self._time_channel_prefix_and_flags(False)
+            IJ.log("Applying single-view calibration to XML angle " + angle_label)
+            IJ.run(
+                "Apply Transformations",
+                "select=[" + dataset + "] "
+                "apply_to_angle=[Single angle (Select from List)] "
+                "apply_to_channel=[All channels] apply_to_illumination=[All illuminations] "
+                "apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] "
+                "processing_angle=[angle " + angle_label + "] "
+                "transformation=Affine apply=[Identity transform (removes any existing transforms)] " +
+                same_flags + prefix + "_angle_" + angle_label + "=[" + registration + "]"
+            )
+            return
 
         if (times.find('-') == -1 and times.find(',') == -1) and (len(self.csvtoarray(channels, 'int')) == 1):
             if len(self.csvtoarray(tiles, 'int')) == 1:
@@ -1077,9 +1156,45 @@ class mvrsetup(object):
         exportpath = os.path.join(exportpath, self.dataset)
         IJ.run("As HDF5", "select=[" + datapath + "] resave_angle=[All angles] resave_channel=[All channels] resave_illumination=[All illuminations] resave_tile=[All tiles] resave_timepoint=[All Timepoints] subsampling_factors=[{ {1,1,1}, {2,2,1} }] hdf5_chunk_sizes=[{ {32,16,8}, {16,16,16} }] timepoints_per_partition=1 setups_per_partition=0 use_deflate_compression export_path=[" + exportpath + "]")
 
+    def _apply_single_angle_affine(self, dataset, angle_label, prefix, same_flags, matrix):
+        IJ.run(
+            "Apply Transformations",
+            "select=[" + dataset + "] "
+            "apply_to_angle=[Single angle (Select from List)] "
+            "apply_to_channel=[All channels] apply_to_illumination=[All illuminations] "
+            "apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] "
+            "processing_angle=[angle " + angle_label + "] "
+            "transformation=Affine apply=[Current view transformations (appends to current transforms)] " +
+            same_flags + prefix + "_angle_" + angle_label + "=[" + matrix + "]"
+        )
+
+    def _apply_single_angle_translation(self, dataset, angle_label, prefix, same_flags, vector):
+        IJ.run(
+            "Apply Transformations",
+            "select=[" + dataset + "] "
+            "apply_to_angle=[Single angle (Select from List)] "
+            "apply_to_channel=[All channels] apply_to_illumination=[All illuminations] "
+            "apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] "
+            "processing_angle=[angle " + angle_label + "] "
+            "transformation=Translation apply=[Current view transformations (appends to current transforms)] " +
+            same_flags + prefix + "_angle_" + angle_label + "=[" + vector + "]"
+        )
+
+    def _apply_single_angle_rotation_x(self, dataset, angle_label, prefix, same_flags, rotation):
+        IJ.run(
+            "Apply Transformations",
+            "select=[" + dataset + "] "
+            "apply_to_angle=[Single angle (Select from List)] "
+            "apply_to_channel=[All channels] apply_to_illumination=[All illuminations] "
+            "apply_to_tile=[All tiles] apply_to_timepoint=[All Timepoints] "
+            "processing_angle=[angle " + angle_label + "] "
+            "transformation=Rigid apply=[Current view transformations (appends to current transforms)] "
+            "define=[Rotation around axis] " + same_flags +
+            "axis_" + prefix + "_angle_" + angle_label + "=x-axis "
+            "rotation_" + prefix + "_angle_" + angle_label + "=" + rotation
+        )
+
     def _apply_single_view_transform(self):
-        times = self.dims[3]
-        channels = self.dims[4]
         zplanes = self.dims[2]
         xdim = self.dims[0]
         ydim = self.dims[1]
@@ -1087,7 +1202,8 @@ class mvrsetup(object):
 
         Angle_ = 2 * self.angle
         second_angle = self._expected_second_angle()
-        single_angle = str(self.detected_angles[0])
+        physical_angle = str(self.detected_angles[0])
+        xml_angle = self._single_view_angle_for_macro()
 
         zdim = math.floor(zplanes * pz / self.px)
         mirror_angle = (math.pi / 180) * self.angle
@@ -1097,57 +1213,42 @@ class mvrsetup(object):
         tan0 = IJ.d2s(tan0, 6)
         datapath = os.path.join(self.datapath, self.dataset)
 
-        single_time = (times.find('-') == -1 and times.find(',') == -1)
-        multi_channel = (len(self.csvtoarray(channels, 'int')) > 1)
+        prefix, same_flags = self._time_channel_prefix_and_flags(False)
 
-        if single_time and multi_channel:
-            prefix = "timepoint_" + times + "_all_channels_illumination_0"
-            same_flags = "same_transformation_for_all_channels "
-        elif single_time and not multi_channel:
-            prefix = "timepoint_" + times + "_channel_" + channels + "_illumination_0"
-            same_flags = ""
-        elif (not single_time) and multi_channel:
-            prefix = "all_timepoints_all_channels_illumination_0"
-            same_flags = "same_transformation_for_all_timepoints same_transformation_for_all_channels same_transformation_for_all_tiles "
-        else:
-            prefix = "all_timepoints_channel_" + channels + "_illumination_0"
-            same_flags = "same_transformation_for_all_timepoints "
-
-        IJ.log("Applying single-view dOPM transform for angle" + single_angle)
-        all_angle_flags = same_flags + "same_transformation_for_all_angles "
-
-        IJ.run(
-            "Apply Transformations",
-            "select=[" + datapath + "] "
-            "apply_to_angle=[All angles] apply_to_channel=[All channels] "
-            "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
-            "apply_to_timepoint=[All Timepoints] transformation=Affine "
-            "apply=[Current view transformations (appends to current transforms)] " +
-            all_angle_flags +
-            prefix + "_all_angles=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0," +
-            tan0 + ", 0.0, 0.0, 0.0, 1.0, 0.0]"
+        IJ.log(
+            "Applying single-view dOPM transform for physical angle" + physical_angle +
+            " to XML angle " + xml_angle
         )
 
-        if single_angle == second_angle:
+        # In a two-view dataset these transforms are often applied with
+        # apply_to_angle=[All angles].  For a single-view XML, explicitly target
+        # the one XML angle.  This gives physical angle0 the same numeric stack
+        # as two-view angle0, and physical angle70 the same numeric stack as
+        # two-view angle70, while avoiding BigStitcher all-angle macro defaults
+        # of identity/zero observed for single-angle XMLs.
+        self._apply_single_angle_affine(
+            datapath,
+            xml_angle,
+            prefix,
+            same_flags,
+            "1.0, 0.0, 0.0, 0.0, 0.0, 1.0," + tan0 + ", 0.0, 0.0, 0.0, 1.0, 0.0"
+        )
+
+        if physical_angle == second_angle:
             string = IJ.d2s(zdim_correct_shift, 0)
-            IJ.run(
-                "Apply Transformations",
-                "select=[" + datapath + "] "
-                "apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] "
-                "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
-                "apply_to_timepoint=[All Timepoints] processing_angle=[angle " + single_angle + "] "
-                "transformation=Affine apply=[Current view transformations (appends to current transforms)] " +
-                same_flags + prefix + "_angle_" + single_angle +
-                "=[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0]"
+            self._apply_single_angle_affine(
+                datapath,
+                xml_angle,
+                prefix,
+                same_flags,
+                "1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0"
             )
-            IJ.run(
-                "Apply Transformations",
-                "select=[" + datapath + "] "
-                "apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] "
-                "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
-                "apply_to_timepoint=[All Timepoints] processing_angle=[angle " + single_angle + "] "
-                "transformation=Translation apply=[Current view transformations (appends to current transforms)] " +
-                same_flags + prefix + "_angle_" + single_angle + "=[0,0," + string + "]"
+            self._apply_single_angle_translation(
+                datapath,
+                xml_angle,
+                prefix,
+                same_flags,
+                "0,0," + string
             )
             rot = "-" + IJ.d2s(Angle_, 0)
         else:
@@ -1157,34 +1258,28 @@ class mvrsetup(object):
         string2 = IJ.d2s(math.floor(ydim_deskewed / 2), 0)
         string3 = IJ.d2s(math.floor(zdim_correct_shift / 2), 0)
 
-        IJ.run(
-            "Apply Transformations",
-            "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] "
-            "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
-            "apply_to_timepoint=[All Timepoints] transformation=Translation "
-            "apply=[Current view transformations (appends to current transforms)] " +
-            all_angle_flags + prefix + "_all_angles=[-" + string1 + ",-" + string2 + ",-" + string3 + "]"
+        self._apply_single_angle_translation(
+            datapath,
+            xml_angle,
+            prefix,
+            same_flags,
+            "-" + string1 + ",-" + string2 + ",-" + string3
         )
 
-        IJ.run(
-            "Apply Transformations",
-            "select=[" + datapath + "] "
-            "apply_to_angle=[Single angle (Select from List)] apply_to_channel=[All channels] "
-            "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
-            "apply_to_timepoint=[All Timepoints] processing_angle=[angle " + single_angle + "] "
-            "transformation=Rigid apply=[Current view transformations (appends to current transforms)] "
-            "define=[Rotation around axis] " + same_flags +
-            "axis_" + prefix + "_angle_" + single_angle + "=x-axis "
-            "rotation_" + prefix + "_angle_" + single_angle + "=" + rot
+        self._apply_single_angle_rotation_x(
+            datapath,
+            xml_angle,
+            prefix,
+            same_flags,
+            rot
         )
 
-        IJ.run(
-            "Apply Transformations",
-            "select=[" + datapath + "] apply_to_angle=[All angles] apply_to_channel=[All channels] "
-            "apply_to_illumination=[All illuminations] apply_to_tile=[All tiles] "
-            "apply_to_timepoint=[All Timepoints] transformation=Translation "
-            "apply=[Current view transformations (appends to current transforms)] " +
-            all_angle_flags + prefix + "_all_angles=[" + string1 + "," + string2 + "," + string3 + "]"
+        self._apply_single_angle_translation(
+            datapath,
+            xml_angle,
+            prefix,
+            same_flags,
+            string1 + "," + string2 + "," + string3
         )
 
     def transformXMLdataset(self):

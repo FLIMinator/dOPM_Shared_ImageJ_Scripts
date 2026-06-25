@@ -155,8 +155,6 @@ Available modes include:
 
 Bounding boxes are stored in the dataset XML as `My Bounding Box` and can then be used during volume export/fusion.
 
-For automatic geometry mode, the script now takes the required geometry parameters directly, rather than relying on a sidecar settings file.
-
 ### 4. Export deskewed or fused volumes
 
 Use:
@@ -173,8 +171,6 @@ This script reads the selected dataset XML and exports:
 - selected subsets of timepoints and tiles
 - batch outputs for multiple dataset XML files
 
-The export is XML-driven and does not depend on calibration or registration CSV files.
-
 ### 5. Generate MIPs
 
 Use:
@@ -189,35 +185,12 @@ This generates MIPs from exported TIFF stacks using CLIJ2. It can operate on a s
 
 ## XML-first registration model
 
-Earlier versions exported bead registrations to CSV files and then reused the CSV when processing sample data.
-
-The current workflow avoids that dependency. Registration is transferred directly from the current saved bead XML. This is important because it allows the user to:
 
 1. create and register the bead dataset
 2. open the bead dataset in Fiji / BigStitcher
 3. optimise or correct the registration
 4. save the updated XML
 5. use that updated XML for sample processing
-
-The CSV no longer acts as a stale snapshot of the bead registration.
-
----
-
-## Sidecar files
-
-The core workflow no longer depends on the following sidecar files:
-
-```text
-dataset_calibrations.csv
-dataset_registrations.csv
-dopmsettings.xml
-```
-
-The calibration operation is still retained because the BigStitcher plugin workflow does not reliably carry calibration through in the required way. However, the calibration affine is now read directly from the just-created dataset XML and immediately reapplied, rather than being written to and read back from `dataset_calibrations.csv`.
-
-The registration transfer is read directly from the bead XML, rather than from `dataset_registrations.csv`.
-
-The bounding-box workflow no longer requires `dopmsettings.xml` for the automatic geometry mode.
 
 ---
 
@@ -405,8 +378,6 @@ Test all relevant modes:
 - copy existing box from a bead/reference XML
 - automatic geometry-based box
 
-For automatic geometry mode, confirm that the script asks for the required geometry inputs and does not depend on `dopmsettings.xml`.
-
 #### 7. Volume export
 
 Run:
@@ -471,7 +442,6 @@ The scripts run in Fiji's ImageJ Python environment, which is based on Jython / 
 
 - Keep the scripts readable and easy to modify.
 - Use BigStitcher XML metadata as the source of truth.
-- Avoid unnecessary intermediate CSV sidecars.
 - Avoid reslicing unless explicitly exporting volumes.
 - Preserve interactive QC for bead registration and bounding boxes.
 - Support well-aware datasets without requiring separate folders per well.
@@ -488,3 +458,17 @@ The scripts run in Fiji's ImageJ Python environment, which is based on Jython / 
 
 - CLIJ:  
   <https://imagej.net/plugins/clij>
+
+### Single-view no-registration folders with both angles present
+
+`Transform one-view data` can now process one selected angle from a folder that still contains both dOPM views. Use the new **Single-view angle to use** field:
+
+- leave it blank when the folder truly contains only one angle;
+- enter `0` to process only `angle0`;
+- enter `70` to process only `angle70` when using a 17.5 degree prism angle.
+
+When a target angle is entered, the script filters the input file list before dataset creation, so BigStitcher only sees that one angle. The output dataset name includes the selected angle, for example `dataset_WellF5_angle70.xml`, to avoid overwriting a two-view or opposite-view XML from the same folder.
+
+## License
+
+This repository is released under the MIT License. See the `LICENSE` file for details.

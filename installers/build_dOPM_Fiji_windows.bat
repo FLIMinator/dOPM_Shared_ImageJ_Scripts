@@ -21,6 +21,10 @@ set "FIJI=%ROOT%\Fiji.app"
 set "WORK=%TEMP%\dopm_fiji_2_9_0_build"
 
 set "FIJI_URL=https://downloads.imagej.net/fiji/releases/2.9.0/fiji-2.9.0-win64.zip"
+set "BIGSTITCHER_URL=https://sites.imagej.net/BigStitcher/plugins/Big_Stitcher-0.8.3.jar-20211130143242"
+set "BDV_CORE_URL=https://sites.imagej.net/Fiji/jars/bigdataviewer-core-10.2.0.jar-20210222164216"
+set "BDV_VISTOOLS_URL=https://sites.imagej.net/Fiji/jars/bigdataviewer-vistools-1.0.0-beta-28.jar-20210222164216"
+set "BDV_FIJI_URL=https://sites.imagej.net/Fiji/plugins/bigdataviewer_fiji-6.2.1.jar-20210222164216"
 set "MVR_URL=https://sites.imagej.net/BigStitcher/plugins/multiview_reconstruction-0.11.5.jar-20211201080417"
 set "SPIM_URL=https://sites.imagej.net/BigStitcher/plugins/SPIM_Registration-0.0.1.jar-20180411172036"
 set "CLIJ_URL=https://sites.imagej.net/clij/plugins/clij_-1.9.0.1.jar-20210613085830"
@@ -71,12 +75,12 @@ mkdir "%WORK%" || goto :fail
 mkdir "%ROOT%" || goto :fail
 
 echo.
-echo [1/10] Downloading official Fiji 2.9.0 win64...
+echo [1/13] Downloading official Fiji 2.9.0 win64...
 curl.exe -L --fail --retry 3 --output "%WORK%\fiji.zip" "%FIJI_URL%"
 if errorlevel 1 goto :fail
 
 echo.
-echo [2/10] Extracting Fiji...
+echo [2/13] Extracting Fiji...
 tar.exe -xf "%WORK%\fiji.zip" -C "%ROOT%"
 if errorlevel 1 goto :fail
 if not exist "%FIJI%\ImageJ-win64.exe" (
@@ -85,31 +89,49 @@ if not exist "%FIJI%\ImageJ-win64.exe" (
 )
 
 echo.
-echo [3/10] Installing Multiview Reconstruction 0.11.5...
+echo [3/13] Pinning BigDataViewer compatibility stack...
+for %%F in ("%FIJI%\jars\bigdataviewer-core*.jar") do if exist "%%~fF" del /Q "%%~fF"
+for %%F in ("%FIJI%\jars\bigdataviewer-vistools*.jar") do if exist "%%~fF" del /Q "%%~fF"
+for %%F in ("%FIJI%\plugins\bigdataviewer_fiji*.jar") do if exist "%%~fF" del /Q "%%~fF"
+curl.exe -L --fail --retry 3 --output "%FIJI%\jars\bigdataviewer-core-10.2.0.jar" "%BDV_CORE_URL%"
+if errorlevel 1 goto :fail
+curl.exe -L --fail --retry 3 --output "%FIJI%\jars\bigdataviewer-vistools-1.0.0-beta-28.jar" "%BDV_VISTOOLS_URL%"
+if errorlevel 1 goto :fail
+curl.exe -L --fail --retry 3 --output "%FIJI%\plugins\bigdataviewer_fiji-6.2.1.jar" "%BDV_FIJI_URL%"
+if errorlevel 1 goto :fail
+
+echo.
+echo [4/13] Pinning BigStitcher 0.8.3...
+for %%F in ("%FIJI%\plugins\Big_Stitcher*.jar") do if exist "%%~fF" del /Q "%%~fF"
+curl.exe -L --fail --retry 3 --output "%FIJI%\plugins\Big_Stitcher-0.8.3.jar" "%BIGSTITCHER_URL%"
+if errorlevel 1 goto :fail
+
+echo.
+echo [5/13] Installing Multiview Reconstruction 0.11.5...
 for %%F in ("%FIJI%\plugins\multiview_reconstruction*.jar") do if exist "%%~fF" del /Q "%%~fF"
 curl.exe -L --fail --retry 3 --output "%FIJI%\plugins\multiview_reconstruction-0.11.5.jar" "%MVR_URL%"
 if errorlevel 1 goto :fail
 
 echo.
-echo [4/10] Installing SPIM Registration compatibility JAR 0.0.1...
+echo [6/13] Installing SPIM Registration compatibility JAR 0.0.1...
 for %%F in ("%FIJI%\plugins\SPIM_Registration*.jar") do if exist "%%~fF" del /Q "%%~fF"
 curl.exe -L --fail --retry 3 --output "%FIJI%\plugins\SPIM_Registration-0.0.1.jar" "%SPIM_URL%"
 if errorlevel 1 goto :fail
 
 echo.
-echo [5/10] Installing CLIJ 1.9.0.1...
+echo [7/13] Installing CLIJ 1.9.0.1...
 for %%F in ("%FIJI%\plugins\clij_*.jar") do if exist "%%~fF" del /Q "%%~fF"
 curl.exe -L --fail --retry 3 --output "%FIJI%\plugins\clij_-1.9.0.1.jar" "%CLIJ_URL%"
 if errorlevel 1 goto :fail
 
 echo.
-echo [6/10] Installing CLIJ2 2.5.1.4...
+echo [8/13] Installing CLIJ2 2.5.1.4...
 for %%F in ("%FIJI%\plugins\clij2_*.jar") do if exist "%%~fF" del /Q "%%~fF"
 curl.exe -L --fail --retry 3 --output "%FIJI%\plugins\clij2_-2.5.1.4.jar" "%CLIJ2_URL%"
 if errorlevel 1 goto :fail
 
 echo.
-echo [7/10] Installing CLIJ Java dependencies...
+echo [9/13] Installing CLIJ Java dependencies...
 for %%F in ("%FIJI%\jars\clij-clearcl*.jar") do if exist "%%~fF" del /Q "%%~fF"
 for %%F in ("%FIJI%\jars\clij-core-*.jar") do if exist "%%~fF" del /Q "%%~fF"
 for %%F in ("%FIJI%\jars\clij-coremem*.jar") do if exist "%%~fF" del /Q "%%~fF"
@@ -121,14 +143,18 @@ curl.exe -L --fail --retry 3 --output "%FIJI%\jars\clij-coremem-2.3.0.4.jar" "%C
 if errorlevel 1 goto :fail
 
 echo.
-echo [8/10] Installing JOCL 2.0.2 for CLIJ/OpenCL...
+echo [10/13] Installing JOCL 2.0.2 for CLIJ/OpenCL...
 for %%F in ("%FIJI%\jars\jocl-*.jar") do if exist "%%~fF" del /Q "%%~fF"
 curl.exe -L --fail --retry 3 --output "%FIJI%\jars\jocl-2.0.2.jar" "%JOCL_URL%"
 if errorlevel 1 goto :fail
 
 echo.
-echo [9/10] Verifying installed components...
+echo [11/13] Verifying installed components...
 set "BAD=0"
+call :check "%FIJI%\jars\bigdataviewer-core-10.2.0.jar" "BigDataViewer core 10.2.0"
+call :check "%FIJI%\jars\bigdataviewer-vistools-1.0.0-beta-28.jar" "BigDataViewer vistools beta-28"
+call :check "%FIJI%\plugins\bigdataviewer_fiji-6.2.1.jar" "BigDataViewer Fiji 6.2.1"
+call :check "%FIJI%\plugins\Big_Stitcher-0.8.3.jar" "BigStitcher 0.8.3"
 call :check "%FIJI%\plugins\multiview_reconstruction-0.11.5.jar" "Multiview Reconstruction 0.11.5"
 call :check "%FIJI%\plugins\SPIM_Registration-0.0.1.jar" "SPIM Registration 0.0.1"
 call :check "%FIJI%\plugins\clij_-1.9.0.1.jar" "CLIJ 1.9.0.1"
@@ -137,15 +163,23 @@ call :check "%FIJI%\jars\clij-clearcl-2.5.0.1.jar" "CLIJ ClearCL 2.5.0.1"
 call :check "%FIJI%\jars\clij-core-1.8.1.1.jar" "CLIJ core 1.8.1.1"
 call :check "%FIJI%\jars\clij-coremem-2.3.0.4.jar" "CLIJ coremem 2.3.0.4"
 call :check "%FIJI%\jars\jocl-2.0.2.jar" "JOCL 2.0.2"
+if exist "%FIJI%\jars\bigdataviewer-core-10.4.3.jar" (
+    echo   [FAIL] Incompatible BigDataViewer core 10.4.3 is still present
+    set "BAD=1"
+)
 if "%BAD%"=="1" goto :fail
 
 echo.
-echo [10/10] Writing environment record...
+echo [12/13] Writing environment record...
 (
     echo dOPM Fiji reproducible environment
     echo Base: official Fiji 2.9.0 win64
     echo.
     echo Added/replaced components:
+    echo bigdataviewer-core-10.2.0.jar
+    echo bigdataviewer-vistools-1.0.0-beta-28.jar
+    echo bigdataviewer_fiji-6.2.1.jar
+    echo Big_Stitcher-0.8.3.jar
     echo multiview_reconstruction-0.11.5.jar
     echo SPIM_Registration-0.0.1.jar
     echo clij_-1.9.0.1.jar
@@ -160,6 +194,8 @@ echo [10/10] Writing environment record...
     echo Fiji.app\plugins\Scripts\dOPM
 ) > "%ROOT%\DOPM_FIJI_ENVIRONMENT.txt"
 
+echo.
+echo [13/13] Finalising build...
 rmdir /S /Q "%WORK%" >nul 2>nul
 
 echo.

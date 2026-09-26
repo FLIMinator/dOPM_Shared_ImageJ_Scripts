@@ -179,7 +179,7 @@ A public Zenodo record will contain the small validation dataset used during dev
 
 **Placeholder — replace when the Zenodo record is published:**
 
-<https://zenodo.org/records/0000000>
+<https://zenodo.org/records/22979717>
 
 Expected extracted layout:
 

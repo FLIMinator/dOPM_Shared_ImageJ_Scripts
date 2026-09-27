@@ -2,6 +2,7 @@
 from fiji.util.gui import GenericDialogPlus
 from ij import IJ
 import os
+import xml.etree.ElementTree as ET
 from os.path import isfile
 from sys import path
 from java.lang.System import getProperty
@@ -47,9 +48,40 @@ def find_dataset_xmls(folder):
 
 
 
-def get_geometry_parameters_dialog(title):
+def get_raw_z_from_xml(xmlpath_):
+    """Read the preserved raw ViewSetup Z depth from a BigStitcher XML."""
+    if not xmlpath_ or not os.path.isfile(xmlpath_):
+        return None
+    try:
+        root = ET.parse(xmlpath_).getroot()
+    except Exception:
+        return None
+
+    for setup in root.findall("./SequenceDescription/ViewSetups/ViewSetup"):
+        size_node = setup.find("size")
+        if size_node is None or size_node.text is None:
+            continue
+        parts = size_node.text.replace(",", " " ).split()
+        if len(parts) < 3:
+            continue
+        try:
+            z = int(round(float(parts[2])))
+        except Exception:
+            continue
+        if z > 0:
+            return z
+    return None
+
+
+def get_geometry_parameters_dialog(title, xml_hint=None):
+    inferred_z = get_raw_z_from_xml(xml_hint)
+    if inferred_z is None:
+        inferred_z = prefs.getFloat(None, "rawzplanes_", 0)
+    else:
+        IJ.log("Using raw Z depth from dataset XML: " + str(inferred_z))
+
     gui = GenericDialogPlus(title)
-    gui.addNumericField("Raw Z planes / raw stack depth", prefs.getFloat(None, "rawzplanes_", 0), 0)
+    gui.addNumericField("Raw Z planes / raw stack depth", inferred_z, 0)
     gui.addNumericField("Prism angle (degrees)", prefs.getFloat(None, "prismangle_", 0), 2)
     gui.showDialog()
 
@@ -234,7 +266,7 @@ def main():
             elif method_choice == method_choices[1]:
                 copy_existing_bb_from_reference(reference_xml_, target_xml_)
             elif method_choice == method_choices[2]:
-                params = get_geometry_parameters_dialog("Automatic geometry bounding box parameters")
+                params = get_geometry_parameters_dialog("Automatic geometry bounding box parameters", reference_xml_)
                 if params is None:
                     return
                 compute_geometry_from_reference_and_apply(reference_xml_, target_xml_, params[0], params[1])
@@ -253,7 +285,7 @@ def main():
                 prefs.put(None, "target_folder_", target_folder_)
                 prefs.put(None, "reference_xml_", reference_xml_)
 
-                params = get_geometry_parameters_dialog("Automatic geometry bounding box parameters")
+                params = get_geometry_parameters_dialog("Automatic geometry bounding box parameters", reference_xml_ if reference_xml_ else None)
                 if params is None:
                     return
 

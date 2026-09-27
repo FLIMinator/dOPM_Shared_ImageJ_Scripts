@@ -1,5 +1,12 @@
 # Changelog
 
+## Bounding-box compatibility for HDF5 bead datasets - 2026-09-27
+
+- automatic batch workflow now reads the preserved ViewSetup Z depth directly from a bead XML, so geometry-based bounding-box estimation works with HDF5/XML-only bead datasets
+- retained ND2 metadata lookup as a fallback for older or unusual XML files
+- added a final user prompt for raw Z depth when neither XML nor ND2 can provide it
+- standalone `define_bounding_box.py` now pre-fills raw Z depth from the selected reference XML when available
+
 ## Repository bootstrap and Fiji layout - 2026-09-27
 
 - added one-step Windows and Linux setup scripts that build Fiji when missing and deploy repository-root Jython scripts automatically

@@ -219,6 +219,71 @@ def get_xml_bounding_box(xml_path):
     return None
 
 
+
+
+def get_raw_z_from_xml(xml_path):
+    """Return the first valid ViewSetup Z dimension stored in a BigStitcher XML.
+
+    Works for both raw-ND2-backed and HDF5-resaved datasets because the
+    SequenceDescription/ViewSetups metadata is preserved in the XML.
+    """
+    try:
+        root = ET.parse(xml_path).getroot()
+    except Exception:
+        return None
+
+    for setup in root.findall("./SequenceDescription/ViewSetups/ViewSetup"):
+        size_node = setup.find("size")
+        if size_node is None or size_node.text is None:
+            continue
+        parts = size_node.text.replace(",", " " ).split()
+        if len(parts) < 3:
+            continue
+        try:
+            z = int(round(float(parts[2])))
+        except Exception:
+            continue
+        if z > 0:
+            return z
+    return None
+
+
+def prompt_raw_z(default_z=None):
+    gd = GenericDialogPlus("Raw Z depth required")
+    gd.addMessage(
+        "The original raw Z depth could not be determined automatically.\n"
+        "Enter the number of Z planes in the original bead stack."
+    )
+    if default_z is None or default_z <= 0:
+        default_z = 0
+    gd.addNumericField("Raw Z planes / original stack depth", default_z, 0)
+    gd.showDialog()
+    if not gd.wasOKed():
+        return None
+    value = int(round(gd.getNextNumber()))
+    if value <= 0:
+        raise ValueError("Raw Z planes must be greater than zero")
+    return value
+
+
+def resolve_raw_z_for_existing_bead(bead_folder, bead_xml):
+    # Preferred route: read the preserved ViewSetup dimensions from the XML.
+    size_z = get_raw_z_from_xml(bead_xml)
+    if size_z is not None:
+        log("Using raw Z depth from bead XML: " + str(size_z))
+        return size_z
+
+    # Compatibility fallback for older/unusual XML files.
+    raw = find_first_nd2_recursive(bead_folder)
+    if raw is not None:
+        _, size_z = read_nd2_metadata(raw)
+        if size_z is not None and size_z > 0:
+            log("Using raw Z depth from ND2: " + str(size_z))
+            return int(size_z)
+
+    # Final fallback keeps HDF5/XML-only workflows usable even for legacy XML.
+    return prompt_raw_z(None)
+
 def find_bbox_source_xml(bead_folder, preferred_xml):
     # First use the selected bead XML if it already contains the named box.
     if get_xml_bounding_box(preferred_xml) is not None:
@@ -301,13 +366,10 @@ def automatically_make_bead_dataset(dopmmvr, make_workflow,
 
 
 def compute_bbox_for_existing_xml(dopmmvr, bead_folder, bead_xml, angle):
-    raw = find_first_nd2_recursive(bead_folder)
-    if raw is None:
-        raise RuntimeError(
-            "Cannot calculate a bounding box automatically because no bead ND2 file was found"
-        )
+    size_z = resolve_raw_z_for_existing_bead(bead_folder, bead_xml)
+    if size_z is None:
+        raise RuntimeError("Bounding-box calculation cancelled because raw Z depth is unknown")
 
-    _, size_z = read_nd2_metadata(raw)
     xml_folder = os.path.dirname(bead_xml)
     dataset_name = os.path.basename(bead_xml)
 

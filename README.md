@@ -4,6 +4,8 @@ Jython scripts for processing dual-view oblique plane microscopy (dOPM) datasets
 
 This revision adds a reproducible Fiji build, a faithful end-to-end validation script, and a higher-level automatic batch workflow while keeping the original step-by-step scripts available for inspection and manual control.
 
+Currently supports Nikon .nd2 files. Can be extended to .tiffs and other formats while adhering to the Multiview Reconstruction / BigStitcher framework.
+
 ## What is in this repository
 
 Production Fiji scripts at the repository root:

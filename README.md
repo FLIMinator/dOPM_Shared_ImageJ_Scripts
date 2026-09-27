@@ -1,38 +1,46 @@
 # dOPM Shared ImageJ Scripts
 
-Jython scripts for processing dual-view oblique plane microscopy (dOPM) datasets in Fiji/ImageJ with the Multiview Reconstruction / BigStitcher framework.
+Jython scripts for processing dual-view oblique plane microscopy (dOPM) datasets in Fiji/ImageJ using Multiview Reconstruction / BigStitcher.
 
-This revision adds a reproducible Fiji build, a faithful end-to-end validation script, and a higher-level automatic batch workflow while keeping the original step-by-step scripts available for inspection and manual control.
+This README is written as a **how-to guide**. For the exact pinned Fiji/JAR versions used by the project, see `FIJI_ENVIRONMENT.md`.
 
-Currently supports Nikon .nd2 files. Can be extended to .tiffs and other formats while adhering to the Multiview Reconstruction / BigStitcher framework.
+## What this workflow does
 
-## What is in this repository
+The scripts support a typical dOPM processing sequence:
 
-Production Fiji scripts at the repository root:
+```text
+bead dataset
+  -> geometric transform / deskew
+  -> bead registration
+  -> optional bead-derived bounding box
+  -> transfer registration to sample datasets
+  -> process all detected wells
+  -> optional fusion
+  -> optional XYZ MIP generation
+```
 
-- `dopmmvr.py` — shared dOPM/BigStitcher implementation
-- `make_mvr_dataset.py` — create, transform, and register bead/sample datasets
-- `define_bounding_box.py` — define or copy bounding boxes
-- `get_deskewed_dopm_volumes.py` — export fused or single-view volumes
-- `get_fused_MIPs.py` — generate MIP montages from exported TIFFs
-- `automatic_batch_workflow.py` — user-facing batch workflow from beads through sample datasets, optional fusion, and optional MIPs
+The current workflow is designed for Nikon `.nd2` files and the two-view filename pattern described below.
 
-Reproducibility/support files:
+---
 
-- `installers/setup_dOPM_windows.bat` — recommended Windows one-step setup: builds Fiji if needed and deploys the repository Jython scripts
-- `installers/setup_dOPM_linux.sh` — Linux equivalent of the one-step setup
-- `installers/build_dOPM_Fiji_windows.bat` — Windows 64-bit Fiji environment builder only; no CPython required
-- `installers/build_dOPM_Fiji_linux.sh` — Linux x86_64 Fiji environment builder only; no CPython required
-- `FIJI_ENVIRONMENT.md` — manual record of the exact tested Fiji/plugin recipe
-- `validation/Test_dOPM_EndToEnd_v3_faithful.py` — strict production-order end-to-end test
+# 1. Install the validated Fiji environment
 
-The previous long-form user guide is intentionally not included in this draft revision. A new guide can be added after the automated workflow is finalised.
+## Windows - recommended
 
-## Installation
+Clone or download this repository, then run:
 
-### Recommended: one-step Fiji + dOPM setup
+```text
+installers\setup_dOPM_windows.bat
+```
 
-The generated Fiji environment is placed at the **repository root**, not inside `installers/`:
+The setup script will:
+
+1. create a validated Fiji 2.9.0 environment if one does not already exist;
+2. install the pinned BigStitcher / Multiview Reconstruction / BigDataViewer / CLIJ compatibility stack;
+3. create the Fiji script folder;
+4. copy the repository Python/Jython scripts into Fiji.
+
+The generated Fiji installation is placed here:
 
 ```text
 dOPM_Shared_ImageJ_Scripts/
@@ -40,38 +48,106 @@ dOPM_Shared_ImageJ_Scripts/
     Fiji.app/
 ```
 
-This generated folder is ignored by Git. Keeping the application outside `installers/` makes `installers/` contain only setup scripts and keeps the large Fiji distribution out of version control.
-
-For Windows, double-click or run:
+The dOPM scripts are copied to:
 
 ```text
-installers\setup_dOPM_windows.bat
+Fiji_2.9.0_dOPM/Fiji.app/plugins/Scripts/dOPM
 ```
 
-For Linux x86_64:
+No separate CPython installation is required. The processing scripts run inside Fiji using Jython.
+
+## Linux x86_64
+
+Run:
 
 ```bash
 chmod +x installers/setup_dOPM_linux.sh
 ./installers/setup_dOPM_linux.sh
 ```
 
-The setup script checks whether `Fiji_2.9.0_dOPM/Fiji.app` already exists. If it is missing, it calls the platform-specific Fiji builder and waits for it to finish. It then creates:
+The Linux setup reconstructs the same pinned Fiji/plugin stack. CLIJ2 MIP generation also requires a working OpenCL runtime/driver on the Linux machine.
+
+## Build Fiji only
+
+If you only want the Fiji environment and do not want the repository scripts copied automatically, use:
 
 ```text
-Fiji_2.9.0_dOPM/Fiji.app/plugins/Scripts/dOPM
+installers/build_dOPM_Fiji_windows.bat
 ```
 
-and **copies all repository-root `.py` files** into that folder. Files are copied rather than moved, so the Git repository remains the source of truth.
+or:
 
-The lower-level `build_dOPM_Fiji_windows.bat` and `build_dOPM_Fiji_linux.sh` scripts remain available when only the Fiji environment is wanted. They start from official Fiji 2.9.0 and install the pinned BigStitcher / Multiview Reconstruction / BigDataViewer / CLIJ compatibility stack.
+```bash
+installers/build_dOPM_Fiji_linux.sh
+```
 
-No separate CPython installation is required: these scripts run under Fiji's Jython environment.
+For manual reconstruction of the environment, see `FIJI_ENVIRONMENT.md`.
 
-### Manual Fiji reconstruction
+> **Important:** do not update Fiji / BigStitcher before validating the workflow. The project currently relies on a pinned historical plugin stack.
 
-If you do not want to use either installer, follow `FIJI_ENVIRONMENT.md`. It records the base Fiji archive, exact compatibility JAR versions, download locations, and target paths.
+---
 
-## Automatic batch workflow
+# 2. Prepare your data
+
+## Two-view filename pattern
+
+The canonical pattern is:
+
+```text
+spim_Time{tttt}_Tile{xxxx}_angle{a}.nd2
+```
+
+Example:
+
+```text
+spim_Time0000_Tile0000_angle0.nd2
+spim_Time0000_Tile0000_angle70.nd2
+```
+
+Well suffixes are supported:
+
+```text
+spim_Time0000_Tile0000_angle0__WellF5.nd2
+spim_Time0000_Tile0000_angle70__WellF5.nd2
+```
+
+When well suffixes are present, the workflow creates separate XML datasets such as:
+
+```text
+dataset_WellF5.xml
+dataset_WellF6.xml
+```
+
+Files without a well suffix use:
+
+```text
+dataset.xml
+```
+
+## Recommended folder arrangement
+
+Keep bead/reference data and biological/sample data in separate folders, for example:
+
+```text
+experiment/
+  beads/
+    spim_Time0000_Tile0000_angle0.nd2
+    spim_Time0000_Tile0000_angle70.nd2
+
+  data/
+    spim_Time0000_Tile0000_angle0__WellF5.nd2
+    spim_Time0000_Tile0000_angle70__WellF5.nd2
+    spim_Time0000_Tile0001_angle0__WellF5.nd2
+    spim_Time0000_Tile0001_angle70__WellF5.nd2
+    spim_Time0000_Tile0002_angle0__WellF6.nd2
+    spim_Time0000_Tile0002_angle70__WellF6.nd2
+```
+
+The automatic workflow detects the well patterns and processes them as separate sample datasets.
+
+---
+
+# 3. Recommended workflow: automatic batch processing
 
 Run:
 
@@ -79,107 +155,136 @@ Run:
 automatic_batch_workflow.py
 ```
 
-The GUI asks for:
+from Fiji's dOPM script menu / script location.
 
-- bead/reference folder
-- sample data folder
-- optional output folder
-- pixel size
-- prism / mirror angle
-- fusion binning
-- whether to use one bead-derived bounding box for all sample datasets
-- whether to fuse all sample datasets
-- whether to create XYZ MIP montages
-- whether rebuilding existing sample XML files is allowed
+The dialog asks for:
 
-The workflow reuses the same production functions used by the original GenericDialog scripts rather than maintaining an independent processing implementation.
+- bead/reference folder;
+- sample data folder;
+- optional output folder;
+- pixel size;
+- prism / mirror angle;
+- fusion binning;
+- whether to use one bead-derived bounding box for all sample datasets;
+- whether to fuse the sample datasets;
+- whether to create XYZ MIP montages;
+- whether existing sample XML files may be rebuilt.
 
-### Bead behaviour
+## If the bead folder already contains a registered XML
 
-If a registered bead XML already exists, the workflow uses it as the registration source. HDF5 XML files are preferred when present, matching the faithful validation path.
+The script uses the existing registered bead dataset as the registration source.
 
-If no bead XML exists, the script deliberately does not silently create one. It offers either:
+If an HDF5-resaved bead XML is present, it can be used directly for registration transfer.
 
-1. abort and use the original bead workflow for manual inspection/optimisation; or
-2. explicitly run the automatic bead path.
+For bounding-box estimation, the workflow now supports both:
 
-The automatic bead path follows the tested order: create XML, apply calibration, apply dOPM geometry, register beads, resave to HDF5, then derive the bounding box when requested.
+- bead datasets backed by the original ND2 files; and
+- HDF5/XML-only bead datasets.
 
-### Multi-well sample processing
+The raw Z depth is obtained from the XML when available, with ND2 metadata used as a fallback. If neither provides it, the user is prompted for the original raw Z depth.
 
-Sample processing calls the production `process_data_with_beads(...)` workflow, which discovers the well groups and generates the corresponding `dataset_Well...xml` files. The automatic workflow then optionally copies one bead-derived bounding box to all sample XMLs, performs batch fusion, and generates MIPs from the fused TIFF stacks.
+## If the bead folder does not contain an XML
 
-If MIPs are selected while fusion is not selected, fusion is enabled automatically because this workflow generates MIPs from fused TIFF outputs.
+The workflow asks what to do rather than silently creating a registration.
 
-## Original manual workflow
+You can either:
 
-The original scripts remain available and are still useful when a user wants to inspect or intervene at each BigStitcher stage.
+1. abort and use the original manual bead workflow, inspect the registration, and then rerun the automatic workflow; or
+2. explicitly allow the automatic bead workflow to run.
+
+The automatic bead sequence is:
+
+```text
+create XML
+-> apply calibration
+-> apply dOPM geometric transforms
+-> register beads
+-> resave to HDF5
+-> calculate bead bounding box when requested
+```
+
+## Sample processing
+
+After a bead registration source has been selected or created, the workflow:
+
+1. discovers the well groups in the sample folder;
+2. creates one dataset XML per well;
+3. applies the sample geometry;
+4. transfers the bead registration to the sample datasets;
+5. optionally applies the same bead-derived bounding box to every sample XML;
+6. optionally fuses all datasets;
+7. optionally creates XYZ MIP montages from the fused TIFF stacks.
+
+If MIPs are selected, fusion is required because the MIP stage operates on the fused TIFF outputs.
+
+---
+
+# 4. Manual workflow
+
+Use the manual scripts when you want to inspect or intervene at individual BigStitcher stages.
 
 The intended order is:
 
 ```text
-1. make/register bead dataset
-2. inspect/optimise bead registration if required
-3. derive or define the bead bounding box
+1. create / transform / register the bead dataset
+2. inspect the bead registration in BigStitcher / Data Explorer
+3. define the bead bounding box
 4. create sample datasets and transfer bead registration
 5. copy the common bounding box to the sample datasets
-6. fuse/export sample datasets
+6. fuse / export the sample datasets
 7. generate MIPs
 ```
 
-The faithful validator intentionally mirrors these existing GenericDialog workflows in this order rather than constructing a parallel pipeline.
+The main scripts are:
 
-## Data assumptions
+- `make_mvr_dataset.py` - create, transform, and register bead/sample datasets
+- `define_bounding_box.py` - define, calculate, or copy bounding boxes
+- `get_deskewed_dopm_volumes.py` - export fused or single-view volumes
+- `get_fused_MIPs.py` - create MIP montages
+- `dopmmvr.py` - shared dOPM / BigStitcher implementation used by the workflow scripts
 
-The canonical two-view file pattern is:
+## Inspecting bead registration
+
+After bead registration, open the dataset in BigStitcher / Data Explorer and inspect the views before using the registration on biological data.
+
+The pinned BigDataViewer stack is included specifically so the BigStitcher viewer / Data Explorer can be used for this QC step.
+
+---
+
+# 5. Bounding boxes
+
+A common bead-derived bounding box can be applied to every sample dataset so that all exported volumes use the same coordinate extent.
+
+The bounding-box tools support:
+
+- a bead XML with the original ND2 data available;
+- a resaved HDF5 bead XML without the original ND2 files;
+- manual entry of the original raw Z depth if it cannot be determined automatically.
+
+In the automatic workflow, enable:
 
 ```text
-spim_Time{tttt}_Tile{xxxx}_angle{a}.nd2
+Use one bead-derived bounding box for all sample datasets
 ```
 
-For example:
+when you want all well datasets to use the same bead-derived volume limits.
+
+---
+
+# 6. Fusion and MIPs
+
+If fusion is enabled, the workflow processes every generated sample XML in batch.
+
+Typical output structure:
 
 ```text
-spim_Time0000_Tile0000_angle0.nd2
-spim_Time0000_Tile0000_angle70.nd2
-```
-
-Optional well suffixes are supported:
-
-```text
-spim_Time0000_Tile0000_angle0__WellF5.nd2
-spim_Time0000_Tile0000_angle70__WellF5.nd2
-```
-
-Well-suffixed files are grouped into independent datasets such as:
-
-```text
-dataset_WellF5.xml
-dataset_WellF6.xml
-```
-
-Files without a well suffix use the default dataset name:
-
-```text
-dataset.xml
-```
-
-The current two-view registration model treats the bead registration as a global experiment-level registration source. Sample transforms are matched by channel and angle and transferred across the sample timepoints, tiles, and well datasets.
-
-## Output example
-
-```text
-data/
-  dataset_WellF5.xml
-  dataset_WellF6.xml
-  dOPM_automatic_batch_report.txt
-
 output/
   dataset_WellF5/
     dataset_WellF5_fused_binning_2/
       *.tif
       MIP/
         *.tif
+
   dataset_WellF6/
     dataset_WellF6_fused_binning_2/
       *.tif
@@ -187,43 +292,109 @@ output/
         *.tif
 ```
 
-## Test dataset
+The MIP workflow generates an XYZ montage for each fused TIFF stack using CLIJ2.
 
-A public Zenodo record will contain the small validation dataset used during development.
+---
 
-**Placeholder — replace when the Zenodo record is published:**
+# 7. Validate the installation with the example dataset
+
+A small example dataset is available on Zenodo:
 
 <https://zenodo.org/records/22979717>
 
-Expected extracted layout:
+Expected layout after extraction:
 
 ```text
 demo_sample_data/
   v1/     # bead data without a well suffix
   v2/     # bead data with a well suffix
-  data/   # sample data with multiple well groups
+  data/   # multi-well sample data
 ```
 
-The faithful validator expects exactly this `v1`, `v2`, and `data` structure.
+Run:
 
-Run `validation/Test_dOPM_EndToEnd_v3_faithful.py` inside Fiji and choose the extracted `demo_sample_data` folder. The validator copies the raw ND2 inputs into an isolated test area before running, so the source test data are not modified.
+```text
+validation/Test_dOPM_EndToEnd_v3_faithful.py
+```
 
-### Current validated result
+inside Fiji and select the extracted `demo_sample_data` folder.
 
-The development test has passed both supported bead naming cases through the full production-order workflow, including geometry, registration transfer, common bounding box, fused TIFF output, and MIP generation.
+The validator copies the source ND2 files into an isolated test area, so the original test dataset is not modified.
 
-The test specifically checks that bead registration changes the ViewRegistration transforms rather than accepting an identity/no-registration result. It also verifies that each sample transform stack exactly matches the corresponding bead registration source by channel and angle.
+The validation workflow follows the production processing order and checks more than file creation. It verifies that:
 
-With the current demo data and the tested settings (`0.35 um`, `17.5 degrees`, fusion binning `2`), both v1 and v2 completed successfully. The multi-well sample set produced fused volumes and a matching MIP count for each dataset.
+- dOPM geometry transforms were applied;
+- bead registration changed the registration transforms;
+- the HDF5 resave preserved the registered transforms;
+- sample registration stacks match the bead registration source;
+- the common bounding box is copied correctly;
+- fused TIFFs are produced;
+- the number of generated MIPs matches the fused TIFF outputs.
 
-## Important reproducibility note
+The development validation has passed both supported bead filename patterns (`v1` and `v2`) through the complete workflow.
 
-Do not run the Fiji updater before reproducing the validation. This project currently depends on specific historical Multiview Reconstruction and CLIJ versions. In particular, the dOPM code relies on the ImageJ command named `Fuse`, which is supplied by the pinned Multiview Reconstruction version used here.
+---
 
-## Linux status
+# 8. Troubleshooting
 
-The Linux installer reconstructs the same pinned Fiji/Java plugin stack using the official Fiji 2.9.0 Linux x86_64 archive. The shell script has been syntax-checked, but the full end-to-end dOPM workflow still needs to be run on a Linux workstation before Linux should be described as experimentally validated. CLIJ2 MIP generation additionally requires a functioning OpenCL runtime/driver on that system.
+## BigStitcher / Data Explorer opens but the BigDataViewer window fails
 
-## License
+The dOPM environment requires a compatible historical BigDataViewer stack. The setup scripts pin:
+
+```text
+bigdataviewer-core-10.2.0.jar
+bigdataviewer-vistools-1.0.0-beta-28.jar
+bigdataviewer_fiji-6.2.1.jar
+```
+
+A newer bundled `bigdataviewer-core-10.4.3.jar` can cause a `NoSuchMethodError` when the Data Explorer tries to open the BDV viewer.
+
+Rebuild Fiji using the current installer if you see that error.
+
+## The scripts run but the bead registration looks wrong
+
+Do not rely only on the fact that the registration command completed. Inspect the bead dataset in BigStitcher / Data Explorer before transferring the registration to biological data.
+
+The faithful validation script also checks that registration produced non-identity changes rather than accepting a no-op registration as a pass.
+
+## Bounding-box calculation asks for ND2 data
+
+Use the current version of `automatic_batch_workflow.py` / `define_bounding_box.py`. The updated code can obtain raw Z depth from the bead XML for HDF5-only datasets and only falls back to ND2 metadata when necessary.
+
+## MIPs fail on Linux
+
+Check that the machine has a functioning OpenCL implementation / GPU driver. CLIJ2 depends on OpenCL.
+
+---
+
+# 9. Repository contents
+
+```text
+dOPM_Shared_ImageJ_Scripts/
+  automatic_batch_workflow.py
+  define_bounding_box.py
+  dopmmvr.py
+  get_deskewed_dopm_volumes.py
+  get_fused_MIPs.py
+  make_mvr_dataset.py
+
+  installers/
+    setup_dOPM_windows.bat
+    setup_dOPM_linux.sh
+    build_dOPM_Fiji_windows.bat
+    build_dOPM_Fiji_linux.sh
+
+  validation/
+    Test_dOPM_EndToEnd_v3_faithful.py
+
+  FIJI_ENVIRONMENT.md
+  LICENSE.md
+```
+
+The generated Fiji environment is stored at the repository root as `Fiji_2.9.0_dOPM/` and is ignored by Git.
+
+---
+
+# 10. License
 
 See `LICENSE.md`.

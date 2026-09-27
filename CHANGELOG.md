@@ -1,5 +1,13 @@
 # Changelog
 
+## Repository bootstrap and Fiji layout - 2026-09-27
+
+- added one-step Windows and Linux setup scripts that build Fiji when missing and deploy repository-root Jython scripts automatically
+- moved generated `Fiji_2.9.0_dOPM` output from `installers/` to the repository root
+- added `Fiji_2.9.0_dOPM/` to `.gitignore` so the generated Fiji application is not committed
+- retained lower-level environment-only builders for users who want to install Fiji without deploying the dOPM scripts
+- documented the pinned BigDataViewer compatibility stack required for BigStitcher Data Explorer / BDV viewing
+
 ## Reproducibility / automatic batch workflow draft - 2026-09
 
 - added `automatic_batch_workflow.py`

@@ -16,7 +16,8 @@ rem ============================================================================
 
 cd /d "%~dp0"
 
-set "ROOT=%~dp0Fiji_2.9.0_dOPM"
+for %%I in ("%~dp0..") do set "REPO_ROOT=%%~fI"
+set "ROOT=%REPO_ROOT%\Fiji_2.9.0_dOPM"
 set "FIJI=%ROOT%\Fiji.app"
 set "WORK=%TEMP%\dopm_fiji_2_9_0_build"
 
@@ -211,6 +212,7 @@ echo   2. Launch Fiji.
 echo   3. Run validation\Test_dOPM_EndToEnd_v3_faithful.py on the test dataset.
 echo   4. Do NOT run Help ^> Update before validation.
 echo.
+if /I "%DOPM_NO_LAUNCH%"=="1" goto :done
 choice /C YN /N /M "Launch Fiji now? [Y/N] "
 if errorlevel 2 goto :done
 start "" "%FIJI%\ImageJ-win64.exe"

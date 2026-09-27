@@ -16,7 +16,8 @@ set -euo pipefail
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="${SCRIPT_DIR}/Fiji_2.9.0_dOPM"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT="${REPO_ROOT}/Fiji_2.9.0_dOPM"
 FIJI="${ROOT}/Fiji.app"
 WORK="${TMPDIR:-/tmp}/dopm_fiji_2_9_0_build"
 

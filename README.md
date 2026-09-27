@@ -19,8 +19,10 @@ Production Fiji scripts at the repository root:
 
 Reproducibility/support files:
 
-- `installers/build_dOPM_Fiji_windows.bat` — Windows 64-bit Fiji builder; no CPython required
-- `installers/build_dOPM_Fiji_linux.sh` — Linux x86_64 Fiji builder; no CPython required
+- `installers/setup_dOPM_windows.bat` — recommended Windows one-step setup: builds Fiji if needed and deploys the repository Jython scripts
+- `installers/setup_dOPM_linux.sh` — Linux equivalent of the one-step setup
+- `installers/build_dOPM_Fiji_windows.bat` — Windows 64-bit Fiji environment builder only; no CPython required
+- `installers/build_dOPM_Fiji_linux.sh` — Linux x86_64 Fiji environment builder only; no CPython required
 - `FIJI_ENVIRONMENT.md` — manual record of the exact tested Fiji/plugin recipe
 - `validation/Test_dOPM_EndToEnd_v3_faithful.py` — strict production-order end-to-end test
 
@@ -28,30 +30,40 @@ The previous long-form user guide is intentionally not included in this draft re
 
 ## Installation
 
-### Recommended: build the tested Fiji environment
+### Recommended: one-step Fiji + dOPM setup
 
-For Windows, run:
+The generated Fiji environment is placed at the **repository root**, not inside `installers/`:
 
 ```text
-installers\build_dOPM_Fiji_windows.bat
+dOPM_Shared_ImageJ_Scripts/
+  Fiji_2.9.0_dOPM/
+    Fiji.app/
+```
+
+This generated folder is ignored by Git. Keeping the application outside `installers/` makes `installers/` contain only setup scripts and keeps the large Fiji distribution out of version control.
+
+For Windows, double-click or run:
+
+```text
+installers\setup_dOPM_windows.bat
 ```
 
 For Linux x86_64:
 
 ```bash
-chmod +x installers/build_dOPM_Fiji_linux.sh
-./installers/build_dOPM_Fiji_linux.sh
+chmod +x installers/setup_dOPM_linux.sh
+./installers/setup_dOPM_linux.sh
 ```
 
-Both installers start from official Fiji 2.9.0 and install the pinned Multiview Reconstruction / SPIM Registration / CLIJ / CLIJ2 compatibility components used by the validated workflow. The official Fiji 2.9.0 release archive provides both Windows and Linux 64-bit builds.
-
-The installers do **not** copy the dOPM source code into Fiji. After the Fiji build finishes, copy the production `.py` files from this repository to:
+The setup script checks whether `Fiji_2.9.0_dOPM/Fiji.app` already exists. If it is missing, it calls the platform-specific Fiji builder and waits for it to finish. It then creates:
 
 ```text
-Fiji.app/plugins/Scripts/dOPM
+Fiji_2.9.0_dOPM/Fiji.app/plugins/Scripts/dOPM
 ```
 
-Then restart Fiji.
+and **copies all repository-root `.py` files** into that folder. Files are copied rather than moved, so the Git repository remains the source of truth.
+
+The lower-level `build_dOPM_Fiji_windows.bat` and `build_dOPM_Fiji_linux.sh` scripts remain available when only the Fiji environment is wanted. They start from official Fiji 2.9.0 and install the pinned BigStitcher / Multiview Reconstruction / BigDataViewer / CLIJ compatibility stack.
 
 No separate CPython installation is required: these scripts run under Fiji's Jython environment.
 

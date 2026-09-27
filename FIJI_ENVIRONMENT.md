@@ -22,6 +22,10 @@ Replace any conflicting versions and install the following exact files.
 
 | Component | Version | Destination in Fiji.app | Source |
 |---|---:|---|---|
+| BigStitcher | 0.8.3 | `plugins/Big_Stitcher-0.8.3.jar` | `https://sites.imagej.net/BigStitcher/plugins/Big_Stitcher-0.8.3.jar-20211130143242` |
+| BigDataViewer core | 10.2.0 | `jars/bigdataviewer-core-10.2.0.jar` | `https://sites.imagej.net/Fiji/jars/bigdataviewer-core-10.2.0.jar-20210222164216` |
+| BigDataViewer vistools | 1.0.0-beta-28 | `jars/bigdataviewer-vistools-1.0.0-beta-28.jar` | `https://sites.imagej.net/Fiji/jars/bigdataviewer-vistools-1.0.0-beta-28.jar-20210222164216` |
+| BigDataViewer Fiji | 6.2.1 | `plugins/bigdataviewer_fiji-6.2.1.jar` | `https://sites.imagej.net/Fiji/plugins/bigdataviewer_fiji-6.2.1.jar-20210222164216` |
 | Multiview Reconstruction | 0.11.5 | `plugins/multiview_reconstruction-0.11.5.jar` | `https://sites.imagej.net/BigStitcher/plugins/multiview_reconstruction-0.11.5.jar-20211201080417` |
 | SPIM Registration compatibility JAR | 0.0.1 | `plugins/SPIM_Registration-0.0.1.jar` | `https://sites.imagej.net/BigStitcher/plugins/SPIM_Registration-0.0.1.jar-20180411172036` |
 | CLIJ | 1.9.0.1 | `plugins/clij_-1.9.0.1.jar` | `https://sites.imagej.net/clij/plugins/clij_-1.9.0.1.jar-20210613085830` |
@@ -34,8 +38,14 @@ Replace any conflicting versions and install the following exact files.
 Before copying these files, remove older/conflicting copies matching these patterns:
 
 ```text
+plugins/Big_Stitcher*.jar
+plugins/BigStitcher*.jar
 plugins/multiview_reconstruction*.jar
 plugins/SPIM_Registration*.jar
+plugins/bigdataviewer_fiji*.jar
+jars/bigdataviewer-core*.jar
+jars/bigdataviewer-vistools*.jar
+jars/bigdataviewer_fiji*.jar
 plugins/clij_*.jar
 plugins/clij2_*.jar
 jars/clij-clearcl*.jar
@@ -45,6 +55,25 @@ jars/jocl-*.jar
 ```
 
 The exact `multiview_reconstruction-0.11.5.jar` matters because this dOPM workflow calls the historical BigStitcher/ImageJ command named `Fuse` directly.
+
+The BigDataViewer versions are pinned because newer bundled BDV core versions (for example 10.4.3) can break the historical BigStitcher Data Explorer with `NoSuchMethodError` errors even when the processing scripts themselves still run.
+
+## Recommended repository setup
+
+The repository now includes one-step bootstrap scripts:
+
+- Windows: `installers/setup_dOPM_windows.bat`
+- Linux x86_64: `installers/setup_dOPM_linux.sh`
+
+They create the generated Fiji environment at the repository root:
+
+```text
+Fiji_2.9.0_dOPM/Fiji.app
+```
+
+and then copy all repository-root `.py` files to `Fiji.app/plugins/Scripts/dOPM`. The generated Fiji directory is ignored by Git.
+
+The lower-level `build_dOPM_Fiji_windows.bat` and `build_dOPM_Fiji_linux.sh` scripts only build the Fiji environment.
 
 ## Install the dOPM scripts
 

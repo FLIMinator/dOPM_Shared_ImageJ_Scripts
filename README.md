@@ -19,7 +19,9 @@ bead dataset
   -> optional XYZ MIP generation
 ```
 
-The current workflow is designed for Nikon `.nd2` files and the two-view filename pattern described below.
+The current workflow is designed for Nikon `.nd2` files and the two-view filename pattern described below. 
+
+Can take tiff stacks with minor code changes.
 
 ---
 
@@ -54,7 +56,7 @@ The dOPM scripts are copied to:
 Fiji_2.9.0_dOPM/Fiji.app/plugins/Scripts/dOPM
 ```
 
-No separate CPython installation is required. The processing scripts run inside Fiji using Jython.
+The processing scripts run inside Fiji using Jython.
 
 ## Linux x86_64
 
